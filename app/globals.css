@@ -154,6 +154,12 @@ main {
 .form input { min-height: 48px; }
 .form .button { margin-top: 12px; }
 .form textarea:focus-visible, .form input:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.review { display: flex; flex-direction: column; gap: 12px; margin: 24px 0; }
+.review h2 { margin: 0; }
+.review-img { width: 100%; max-width: 420px; border-radius: 12px; border: 1px solid var(--line); }
+.review-caption { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--ground); white-space: pre-line; overflow-wrap: anywhere; }
+.form input[type='file'] { min-height: auto; padding: 10px; }
 .notice { padding: 12px 16px; border-radius: 10px; background: #e5e7fd; color: var(--accent-ink); font-weight: 600; }
 .notice-error { background: #fde7d3; color: #7a2e00; }
 .small { font-size: 15px; color: var(--muted); margin-top: 24px; }

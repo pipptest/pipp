@@ -19,6 +19,7 @@ This is the real app (private beta). The clickable design prototype lives separa
 - `/connect` connect an Instagram professional account
 - `/account` the connected page: followers, posts and recent captions
 - `/draft` draft three captions in the page's voice from a brief (Claude API)
+- `/publish` upload a photo, review, then publish it to the connected page
 
 Instagram login return address (enter in Meta's business login settings):
 `https://pipp-zeta.vercel.app/api/instagram/callback`
@@ -32,7 +33,7 @@ Set these in Vercel, never in the code:
 - `ANTHROPIC_API_KEY`: for caption drafting (optional `ANTHROPIC_MODEL` overrides the model)
 - `SUPABASE_POSTGRES_URL`, `SUPABASE_JWT_SECRET`: added automatically by the Supabase integration
 
-Connected accounts' Instagram tokens are stored encrypted. The `instagram_accounts` table is created automatically on first use.
+Connected accounts' Instagram tokens are stored encrypted. Photos upload straight to Supabase storage (`pipp-uploads`, private), are converted to Instagram's JPEG format, briefly placed in `pipp-media` (public, so Instagram can fetch them) and deleted after publishing. Both buckets are created automatically. The `instagram_accounts` table is created automatically on first use.
 
 ## Run locally
 

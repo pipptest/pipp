@@ -58,7 +58,10 @@ export default async function Account() {
           <div><span>Captions pipp can learn from</span><strong>{captioned.length}</strong></div>
         </div>
 
-        <a className="button" href="/draft">Draft a caption</a>
+        <div className="row">
+          <a className="button" href="/draft">Draft a caption</a>
+          <a className="button button-small" href="/publish">Publish a post</a>
+        </div>
 
         <h2>Recent captions</h2>
         {captioned.length === 0 ? (

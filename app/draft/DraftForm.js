@@ -62,7 +62,10 @@ export default function DraftForm({ username }) {
             {state.drafts.map((d, i) => (
               <li key={i}>
                 <p>{d}</p>
-                <CopyButton text={d} />
+                <div className="row">
+                  <CopyButton text={d} />
+                  <a className="button button-small" href={`/publish?caption=${encodeURIComponent(d)}`}>Post with this caption</a>
+                </div>
               </li>
             ))}
           </ul>
