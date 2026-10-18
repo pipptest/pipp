@@ -21,7 +21,7 @@ This is the real app (private beta). The clickable design prototype lives separa
 
 Set these in Vercel, never in the code:
 
-- `NEXT_PUBLIC_CONTACT_EMAIL`: the email shown on the privacy, terms and data deletion pages
+- `PIPP_EMAIL`: the email shown on the privacy, terms and data deletion pages
 
 ## Run locally
 
