@@ -43,6 +43,9 @@ Set these in Vercel, never in the code:
 - `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: from Meta, Instagram > API setup with Instagram login
 - `ANTHROPIC_API_KEY`: for caption drafting (optional `ANTHROPIC_MODEL` overrides the model)
 - `SUPABASE_POSTGRES_URL`, `SUPABASE_JWT_SECRET`: added automatically by the Supabase integration
+- `CRON_SECRET` (recommended): any long random string; locks the daily token refresh job to Vercel's scheduler
+
+Instagram access lasts 60 days. A daily job (`vercel.json`, `/api/cron/refresh-tokens`) renews each page's access once it has under 50 days left, and pages are also renewed when they visit pipp.
 
 Connected accounts' Instagram tokens are stored encrypted. Photos upload straight to Supabase storage (`pipp-uploads`, private), are converted to Instagram's JPEG format, briefly placed in `pipp-media` (public, so Instagram can fetch them) and deleted after publishing. Both buckets are created automatically. The `instagram_accounts` table is created automatically on first use.
 

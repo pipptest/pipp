@@ -1,7 +1,8 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '../../lib/db';
-import { decrypt, unsign } from '../../lib/crypto';
+import { decrypt } from '../../lib/crypto';
+import { currentAccount } from '../../lib/session';
+import { isExpired } from '../../lib/tokens';
 import { getProfile, getRecentMedia, hasInsightsScope } from '../../lib/instagram';
 import FeeForm from './FeeForm';
 
@@ -15,12 +16,10 @@ function formatDate(iso) {
 const TYPES = { BUSINESS: 'Business account', MEDIA_CREATOR: 'Creator account', CREATOR: 'Creator account' };
 
 export default async function Account() {
-  const igUserId = unsign((await cookies()).get('pipp_session')?.value);
-  if (!igUserId) redirect('/connect');
-
-  const sql = await db();
-  const [account] = await sql`select * from instagram_accounts where ig_user_id = ${igUserId}`;
+  const account = await currentAccount();
   if (!account) redirect('/connect');
+  const igUserId = account.ig_user_id;
+  const sql = await db();
 
   let profile = account;
   let posts = [];
@@ -54,7 +53,12 @@ export default async function Account() {
           {profile.account_type ? (TYPES[profile.account_type] || 'Professional account') + ' · ' : ''}
           connected {formatDate(account.connected_at)}
         </p>
-        {problem && <p className="notice notice-error">{problem}</p>}
+        {isExpired(account) ? (
+          <p className="notice notice-error">
+            Your Instagram connection has expired, so pipp can't read or post for this page.{' '}
+            <a href="/api/instagram/login">Reconnect Instagram</a>
+          </p>
+        ) : problem && <p className="notice notice-error">{problem}</p>}
 
         <div className="stats">
           <div><span>Followers</span><strong>{profile.followers_count?.toLocaleString('en-US') ?? 'Not available'}</strong></div>
