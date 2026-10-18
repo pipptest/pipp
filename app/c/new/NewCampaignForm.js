@@ -58,6 +58,8 @@ export default function NewCampaignForm({ pages }) {
       link: form.get('link'),
       startsOn: form.get('startsOn'),
       endsOn: form.get('endsOn'),
+      respondHours: form.get('respondHours'),
+      approveEdits: form.get('approveEdits') === 'on',
       pageIds: chosen.map((p) => p.id),
       assets: assets.filter((a) => a.status === 'done').map(({ path, filename, contentType, size }) => ({ path, filename, contentType, size })),
     }).catch(() => ({ error: 'Something went wrong. Try again.' }));
@@ -94,9 +96,20 @@ export default function NewCampaignForm({ pages }) {
         </div>
       </div>
 
+      <label htmlFor="respondHours">Pages must reply within</label>
+      <select id="respondHours" name="respondHours" defaultValue="48">
+        <option value="24">24 hours</option>
+        <option value="48">48 hours</option>
+        <option value="72">72 hours</option>
+      </select>
+      <label className="check">
+        <input type="checkbox" name="approveEdits" defaultChecked />
+        <span><strong>Approve edited captions before they post</strong><br /><span className="muted">Drafts go straight through. You only review a caption if a page rewrites it.</span></span>
+      </label>
+
       <label htmlFor="files">Photos and videos</label>
       <input id="files" type="file" accept={ACCEPT} multiple onChange={addFiles} />
-      <span className="small">Pages get the original files. Photos can be posted straight from pipp; videos are download-only for now.</span>
+      <span className="small">Pages get the original files. Pages can post photos and videos straight from pipp (videos as Reels), or download them.</span>
       {assets.length > 0 && (
         <ul className="files">
           {assets.map((a) => (
@@ -126,7 +139,15 @@ export default function NewCampaignForm({ pages }) {
                 onChange={(e) => setSelected((s) => ({ ...s, [p.id]: e.target.checked }))}
               />
               <span className="grow"><strong>@{p.username}</strong>
-                <span className="muted">{p.followers != null ? `${p.followers.toLocaleString('en-US')} followers` : ''}</span>
+                <span className="muted">
+                  {[
+                    p.followers != null && `${p.followers.toLocaleString('en-US')} followers`,
+                    p.engagementRate != null && `${p.engagementRate}% engagement`,
+                    p.avgLikes != null && `~${p.avgLikes.toLocaleString('en-US')} likes per post`,
+                    p.campaignsDone ? `${p.campaignsDone} pipp ${p.campaignsDone === 1 ? 'campaign' : 'campaigns'}` : 'New to pipp',
+                  ].filter(Boolean).join(' · ')}
+                </span>
+                <a href={`/c/pages/${p.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>View profile</a>
               </span>
               <strong>{dollars(p.feeCents)}</strong>
             </label>

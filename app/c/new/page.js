@@ -12,9 +12,10 @@ export default async function NewCampaign() {
 
   const sql = await db();
   const pages = await sql`
-    select ig_user_id, username, followers_count, fee_cents, connected_at
-    from instagram_accounts where fee_cents is not null
-    order by followers_count desc nulls last
+    select a.ig_user_id, a.username, a.followers_count, a.fee_cents, a.snapshot,
+      (select count(*)::int from offers o where o.ig_user_id = a.ig_user_id and o.status = 'posted') as done
+    from instagram_accounts a where a.fee_cents is not null
+    order by a.followers_count desc nulls last
   `;
 
   return (
@@ -29,6 +30,9 @@ export default async function NewCampaign() {
             username: p.username,
             followers: p.followers_count,
             feeCents: p.fee_cents,
+            engagementRate: p.snapshot?.engagement_rate ?? null,
+            avgLikes: p.snapshot?.avg_likes ?? null,
+            campaignsDone: p.done,
           }))}
         />
       </article>

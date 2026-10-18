@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { db } from '../../../lib/db';
 import { dollars } from '../../../lib/money';
-import { STATUS_LABELS, engagement, refreshOffer } from '../../../lib/offers';
+import { OPEN_FOR_PAGE, engagement, refreshOffer, statusLabel } from '../../../lib/offers';
 import { currentAccount } from '../../../lib/session';
 import { signedDownload } from '../../../lib/storage';
 import { writeDraft } from '../../../lib/campaignDraft';
@@ -58,7 +58,7 @@ export default async function Offer({ params }) {
         <h1>{campaign.name}</h1>
         <p className="date">
           {dollars(offer.fee_cents)} · {window ? `post ${window}` : 'no post window set'} ·{' '}
-          <span className={`chip chip-${offer.status}`}>{offer.status === 'sent' ? 'New' : STATUS_LABELS[offer.status]}</span>
+          <span className={`chip chip-${offer.status}`}>{statusLabel(offer.status, 'page')}</span>
         </p>
 
         <h2>Brief</h2>
@@ -104,13 +104,46 @@ export default async function Offer({ params }) {
           </section>
         )}
         {offer.status === 'declined' && <p className="notice">You declined this campaign.</p>}
+        {offer.status === 'expired' && <p className="notice">This offer expired before you replied.</p>}
+        {offer.status === 'review' && (
+          <section className="card">
+            <h2>With the client for approval</h2>
+            <p>You changed the caption, so {client?.name} needs to approve it. pipp emails you when they reply.</p>
+            <p className="pre caption-box">{offer.caption_final}</p>
+          </section>
+        )}
+        {offer.status === 'publishing' && (
+          <section className="card">
+            <h2>Publishing</h2>
+            <p>Instagram is processing your post. Videos can take a few minutes; pipp finishes it automatically and emails you when it's live.</p>
+          </section>
+        )}
+        {offer.status === 'failed' && offer.publish_error && (
+          <p className="notice notice-error">Last attempt failed: {offer.publish_error} Nothing was posted. You can try again below.</p>
+        )}
+        {offer.status === 'approved' && offer.approval_note == null && (
+          <p className="notice">{client?.name} approved your caption. Post it now, schedule it, or post it yourself.</p>
+        )}
+        {offer.status === 'sent' && offer.approval_note && (
+          <p className="notice notice-error">{client?.name} asked for changes: "{offer.approval_note}"</p>
+        )}
+        {offer.expires_at && ['sent', 'approved'].includes(offer.status) && (
+          <p className="small">Reply by {new Date(offer.expires_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' })}, or the offer expires.</p>
+        )}
 
-        {offer.status === 'sent' && (
+        {(OPEN_FOR_PAGE.includes(offer.status) || offer.status === 'scheduled') && (
           <OfferActions
             offerId={offer.id}
-            initialCaption={offer.caption_draft || ''}
-            photos={assets.filter((a) => a.isImage).map((a) => ({ id: a.id, filename: a.filename, url: a.viewUrl }))}
+            status={offer.status}
+            draft={offer.caption_draft || ''}
+            initialCaption={offer.caption_final || offer.caption_draft || ''}
+            approved={offer.caption_approved}
+            approvedCaption={offer.caption_approved ? offer.caption_final : null}
+            approveEdits={campaign.approve_edits}
+            scheduledFor={offer.scheduled_for ? new Date(offer.scheduled_for).toISOString() : null}
+            files={assets.filter((a) => a.isImage || a.isVideo).map((a) => ({ id: a.id, filename: a.filename, url: a.viewUrl, isVideo: a.isVideo }))}
             username={account.username}
+            clientName={client?.name || 'the client'}
           />
         )}
       </article>

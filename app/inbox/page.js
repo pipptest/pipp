@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { db } from '../../lib/db';
 import { dollars } from '../../lib/money';
-import { STATUS_LABELS, refreshOffer } from '../../lib/offers';
+import { OPEN_FOR_PAGE, refreshOffer, statusLabel } from '../../lib/offers';
 import { currentAccount } from '../../lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ export default async function Inbox() {
     join campaigns c on c.id = o.campaign_id
     join clients cl on cl.id = c.client_id
     where o.ig_user_id = ${account.ig_user_id}
-    order by (o.status = 'sent') desc, o.created_at desc
+    order by (o.status in ('sent', 'approved', 'failed')) desc, o.created_at desc
   `;
   const offers = await Promise.all(
     rows.map(async (r) => ({ ...(await refreshOffer(r, { extras: r.extras }, account)), campaign_name: r.campaign_name, client_name: r.client_name })),
@@ -33,7 +33,7 @@ export default async function Inbox() {
       </div>
       <div className="stats">
         <div><span>Owed for live posts</span><strong>{dollars(pending)}</strong></div>
-        <div><span>New offers</span><strong>{offers.filter((o) => o.status === 'sent').length}</strong></div>
+        <div><span>Needs your reply</span><strong>{offers.filter((o) => OPEN_FOR_PAGE.includes(o.status)).length}</strong></div>
       </div>
       {account.fee_cents == null && (
         <p className="notice">Set your fee on <a href="/account">your page</a> so clients can send you campaigns.</p>
@@ -48,7 +48,7 @@ export default async function Inbox() {
                 <span>
                   <strong>{o.campaign_name}</strong>
                   <span className="muted">{o.client_name}</span>
-                  <span className={`chip chip-${o.status}`}>{o.status === 'sent' ? 'New' : STATUS_LABELS[o.status]}</span>
+                  <span className={`chip chip-${o.status}`}>{statusLabel(o.status, 'page')}</span>
                 </span>
                 <span className="right"><strong>{dollars(o.fee_cents)}</strong></span>
               </a>

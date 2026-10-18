@@ -32,6 +32,18 @@ This is the real app (private beta). The clickable design prototype lives separa
 
 Payments are handled outside pipp during the beta.
 
+Also in the loop:
+- **Deadlines:** offers expire if the page doesn't reply within 24, 48 or 72 hours (set per campaign).
+- **Caption approval:** if a page rewrites the drafted caption, the label approves it or asks for changes first (on by default; adding #ad doesn't count as a rewrite).
+- **Posting:** photos post as feed posts, videos as Reels (also shown on the grid), now or scheduled for a date and time.
+- **Page profiles:** labels see followers, engagement, average likes and comments, pipp history and recent posts (`/c/pages/[id]`).
+- **Email alerts:** new offers, approvals, change requests, accept/decline, expiry, post live, post failed.
+
+## Background jobs
+
+- Every 5 minutes, a job inside Supabase (pg_cron + pg_net, set up automatically by `lib/scheduler.js`) calls `/api/cron/tick`: expires offers, publishes scheduled posts, finishes videos still processing, and detects self-posted campaign posts.
+- Daily, Vercel calls `/api/cron/refresh-tokens`: renews Instagram access, refreshes page stats, checks the 5-minute job exists, and runs one tick.
+
 Instagram login return address (enter in Meta's business login settings):
 `https://pipp-zeta.vercel.app/api/instagram/callback`
 
@@ -43,6 +55,8 @@ Set these in Vercel, never in the code:
 - `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: from Meta, Instagram > API setup with Instagram login
 - `ANTHROPIC_API_KEY`: for caption drafting (optional `ANTHROPIC_MODEL` overrides the model)
 - `SUPABASE_POSTGRES_URL`, `SUPABASE_JWT_SECRET`: added automatically by the Supabase integration
+- Email, one of: `RESEND_API_KEY` (with `EMAIL_FROM`, e.g. `pipp <alerts@yourdomain.com>`), or SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (and optional `EMAIL_FROM`). Without these, emails are only written to the logs.
+- `SITE_URL` (optional): the address used in email links; defaults to the Vercel production address
 - `CRON_SECRET` (recommended): any long random string; locks the daily token refresh job to Vercel's scheduler
 
 Instagram access lasts 60 days. A daily job (`vercel.json`, `/api/cron/refresh-tokens`) renews each page's access once it has under 50 days left, and pages are also renewed when they visit pipp.

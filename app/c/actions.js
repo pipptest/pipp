@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { currentClient, endClientSession, hashPassword, startClientSession, verifyPassword } from '../../lib/clientAuth';
 import { db } from '../../lib/db';
+import { notify } from '../../lib/notify';
+import { ensureScheduler } from '../../lib/scheduler';
 import { newPath, signedUpload } from '../../lib/storage';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -89,6 +91,8 @@ export async function createCampaign(input) {
   const link = cleanLink(input.link);
   const startsOn = cleanDate(input.startsOn);
   const endsOn = cleanDate(input.endsOn);
+  const respondHours = [24, 48, 72].includes(Number(input.respondHours)) ? Number(input.respondHours) : 48;
+  const approveEdits = input.approveEdits !== false;
   const pageIds = Array.isArray(input.pageIds) ? input.pageIds.map(String).slice(0, 50) : [];
   const assets = Array.isArray(input.assets) ? input.assets.slice(0, 10) : [];
   const prefix = `clients/${client.id}/`;
@@ -112,8 +116,8 @@ export async function createCampaign(input) {
 
   const campaignId = await sql.begin(async (tx) => {
     const [campaign] = await tx`
-      insert into campaigns (client_id, name, brief, extras, link, starts_on, ends_on)
-      values (${client.id}, ${name}, ${brief}, ${extras}, ${link}, ${startsOn}, ${endsOn})
+      insert into campaigns (client_id, name, brief, extras, link, starts_on, ends_on, respond_hours, approve_edits)
+      values (${client.id}, ${name}, ${brief}, ${extras}, ${link}, ${startsOn}, ${endsOn}, ${respondHours}, ${approveEdits})
       returning id
     `;
     for (const a of assets) {
@@ -125,12 +129,55 @@ export async function createCampaign(input) {
     }
     for (const p of pages) {
       await tx`
-        insert into offers (campaign_id, ig_user_id, fee_cents)
-        values (${campaign.id}, ${p.ig_user_id}, ${p.fee_cents})
+        insert into offers (campaign_id, ig_user_id, fee_cents, expires_at)
+        values (${campaign.id}, ${p.ig_user_id}, ${p.fee_cents}, now() + make_interval(hours => ${respondHours}))
       `;
     }
     return campaign.id;
   });
 
+  const offers = await sql`select id from offers where campaign_id = ${campaignId}`;
+  await Promise.all(offers.map((o) => notify('new_offer', o.id)));
+  await ensureScheduler().catch((err) => console.error('Scheduler setup failed:', err.message));
   return { ok: true, campaignId };
+}
+
+async function clientOffer(offerId) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  if (!/^[0-9a-f-]{36}$/i.test(String(offerId))) return { error: 'Not found.' };
+  const sql = await db();
+  const [offer] = await sql`
+    select o.* from offers o join campaigns c on c.id = o.campaign_id
+    where o.id = ${offerId} and c.client_id = ${client.id}
+  `;
+  return offer ? { offer, sql } : { error: 'Not found.' };
+}
+
+export async function approveCaption(offerId) {
+  const ctx = await clientOffer(offerId);
+  if (ctx.error) return ctx;
+  const [updated] = await ctx.sql`
+    update offers set status = 'approved', caption_approved = true, approval_note = null,
+      expires_at = greatest(coalesce(expires_at, now()), now() + interval '24 hours'), updated_at = now()
+    where id = ${offerId} and status = 'review' returning id
+  `;
+  if (!updated) return { error: 'This caption is no longer waiting for approval.' };
+  await notify('caption_approved', offerId);
+  return { ok: true };
+}
+
+export async function requestChanges(offerId, note) {
+  const ctx = await clientOffer(offerId);
+  if (ctx.error) return ctx;
+  const text = String(note || '').trim().slice(0, 500);
+  if (!text) return { error: 'Say what you would like changed.' };
+  const [updated] = await ctx.sql`
+    update offers set status = 'sent', caption_approved = false, approval_note = ${text},
+      expires_at = greatest(coalesce(expires_at, now()), now() + interval '24 hours'), updated_at = now()
+    where id = ${offerId} and status = 'review' returning id
+  `;
+  if (!updated) return { error: 'This caption is no longer waiting for approval.' };
+  await notify('changes_requested', offerId);
+  return { ok: true };
 }

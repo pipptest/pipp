@@ -5,6 +5,7 @@ import { currentAccount } from '../../lib/session';
 import { isExpired } from '../../lib/tokens';
 import { getProfile, getRecentMedia, hasInsightsScope } from '../../lib/instagram';
 import FeeForm from './FeeForm';
+import { saveSnapshot } from '../../lib/snapshot';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your page · pipp' };
@@ -29,6 +30,7 @@ export default async function Account() {
     const [fresh, media] = await Promise.all([getProfile(token), getRecentMedia(token)]);
     profile = { ...account, ...fresh };
     posts = media;
+    await saveSnapshot(igUserId, media, fresh.followers_count).catch(() => {});
     await sql`
       update instagram_accounts
       set followers_count = ${fresh.followers_count ?? null}, media_count = ${fresh.media_count ?? null}, updated_at = now()
@@ -66,6 +68,9 @@ export default async function Account() {
           <div><span>Captions pipp can learn from</span><strong>{captioned.length}</strong></div>
         </div>
 
+        {!account.email && (
+          <p className="notice">Add an email below so pipp can tell you when a campaign arrives.</p>
+        )}
         {!hasInsightsScope(account) && (
           <p className="notice">
             Reconnect once so pipp can show clients the reach of your campaign posts.{' '}
@@ -79,7 +84,7 @@ export default async function Account() {
           <a className="button button-small" href="/publish">Publish a post</a>
         </div>
 
-        <FeeForm current={account.fee_cents != null ? String(account.fee_cents / 100) : ''} />
+        <FeeForm currentFee={account.fee_cents != null ? String(account.fee_cents / 100) : ''} currentEmail={account.email || ''} />
 
         <h2>Recent captions</h2>
         {captioned.length === 0 ? (

@@ -2,7 +2,8 @@ import { notFound, redirect } from 'next/navigation';
 import { currentClient } from '../../../lib/clientAuth';
 import { db } from '../../../lib/db';
 import { dollars } from '../../../lib/money';
-import { STATUS_LABELS, engagement, refreshOffer } from '../../../lib/offers';
+import { engagement, refreshOffer, statusLabel } from '../../../lib/offers';
+import ReviewCaption from './ReviewCaption';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Campaign · pipp' };
@@ -41,7 +42,7 @@ export default async function Campaign({ params, searchParams }) {
   const live = offers.filter((o) => o.status === 'posted');
   const reach = live.reduce((t, o) => t + (o.stats?.reach || 0), 0);
   const eng = live.reduce((t, o) => t + (engagement(o.stats) || 0), 0);
-  const committed = offers.filter((o) => ['accepted', 'posted'].includes(o.status)).reduce((t, o) => t + o.fee_cents, 0);
+  const committed = offers.filter((o) => ['accepted', 'approved', 'scheduled', 'publishing', 'posted'].includes(o.status)).reduce((t, o) => t + o.fee_cents, 0);
   const owed = live.reduce((t, o) => t + o.fee_cents, 0);
   const window = [formatDay(campaign.starts_on), formatDay(campaign.ends_on)].filter(Boolean).join(' to ');
 
@@ -56,6 +57,9 @@ export default async function Campaign({ params, searchParams }) {
         </div>
         <a className="button button-small" href={`/c/${id}`}>Refresh</a>
       </div>
+      {offers.some((o) => o.status === 'review') && (
+        <p className="notice">A page edited its caption and needs your approval. See below.</p>
+      )}
 
       <div className="stats">
         <div><span>Pages</span><strong>{offers.length}</strong></div>
@@ -79,7 +83,13 @@ export default async function Campaign({ params, searchParams }) {
           <div key={o.id} className="offer-row">
             <div className="grow">
               <strong>@{o.username || 'disconnected page'}</strong>
-              <span className={`chip chip-${o.status}`}>{STATUS_LABELS[o.status] || o.status}</span>
+              <span className={`chip chip-${o.status}`}>{statusLabel(o.status, 'client')}</span>
+              {o.status === 'scheduled' && o.scheduled_for && (
+                <span className="muted">for {new Date(o.scheduled_for).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' })}</span>
+              )}
+              {o.status === 'sent' && o.expires_at && (
+                <span className="muted">reply due {new Date(o.expires_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' })}</span>
+              )}
               {o.status === 'posted' && o.permalink && (
                 <a href={o.permalink} target="_blank" rel="noreferrer">View post</a>
               )}
@@ -87,6 +97,9 @@ export default async function Campaign({ params, searchParams }) {
             <div className="cell"><span className="muted">Reach</span><strong>{num(o.stats?.reach)}</strong></div>
             <div className="cell"><span className="muted">Engagements</span><strong>{num(engagement(o.stats))}</strong></div>
             <div className="cell"><span className="muted">Fee</span><strong>{dollars(o.fee_cents)}</strong></div>
+            {o.status === 'review' && (
+              <ReviewCaption offerId={o.id} username={o.username || 'the page'} caption={o.caption_final || ''} />
+            )}
           </div>
         ))}
         {offers.some((o) => o.stats?.unavailable) && (
