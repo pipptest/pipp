@@ -20,6 +20,17 @@ This is the real app (private beta). The clickable design prototype lives separa
 - `/account` the connected page: followers, posts and recent captions
 - `/draft` draft three captions in the page's voice from a brief (Claude API)
 - `/publish` upload a photo, review, then publish it to the connected page
+- `/inbox` a page's campaign offers; `/inbox/[id]` brief, files, drafted caption, post from pipp or accept and post yourself
+- `/c` client (label) campaigns; `/c/signup`, `/c/login`; `/c/new` create a campaign; `/c/[id]` status and results per page
+
+## Marketplace loop (beta)
+
+1. A page connects Instagram and sets a fee on `/account`.
+2. A client signs up, creates a campaign (brief, tags, link, window, photos/videos) and picks pages.
+3. The page sees the offer in `/inbox` with a caption drafted from the brief in its voice, then either posts a campaign photo from pipp or accepts and posts it itself.
+4. pipp detects self-posted campaign posts (caption or tagged handles, after acceptance) and pulls reach and engagement for the client.
+
+Payments are handled outside pipp during the beta.
 
 Instagram login return address (enter in Meta's business login settings):
 `https://pipp-zeta.vercel.app/api/instagram/callback`

@@ -21,15 +21,15 @@ export async function GET(request) {
   if (!code || !state || !expected || state !== expected) return fail(request, 'state');
 
   try {
-    const { accessToken, expiresAt } = await exchangeCode(request, code);
+    const { accessToken, expiresAt, scopes } = await exchangeCode(request, code);
     const profile = await getProfile(accessToken);
     const sql = await db();
     await sql`
       insert into instagram_accounts
-        (ig_user_id, username, account_type, followers_count, media_count, profile_picture_url, access_token_enc, token_expires_at)
+        (ig_user_id, username, account_type, followers_count, media_count, profile_picture_url, access_token_enc, token_expires_at, scopes)
       values
         (${String(profile.user_id)}, ${profile.username}, ${profile.account_type ?? null}, ${profile.followers_count ?? null},
-         ${profile.media_count ?? null}, ${profile.profile_picture_url ?? null}, ${encrypt(accessToken)}, ${expiresAt})
+         ${profile.media_count ?? null}, ${profile.profile_picture_url ?? null}, ${encrypt(accessToken)}, ${expiresAt}, ${scopes || null})
       on conflict (ig_user_id) do update set
         username = excluded.username,
         account_type = excluded.account_type,
@@ -38,6 +38,7 @@ export async function GET(request) {
         profile_picture_url = excluded.profile_picture_url,
         access_token_enc = excluded.access_token_enc,
         token_expires_at = excluded.token_expires_at,
+        scopes = excluded.scopes,
         updated_at = now()
     `;
 

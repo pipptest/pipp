@@ -22,7 +22,8 @@ export default function RootLayout({ children }) {
           <div className="bar-inner">
             <Link href="/" className="logo">pipp</Link>
             <nav aria-label="Site">
-              <Link href="/connect">Connect your page</Link>
+              <Link href="/c">For labels</Link>
+              <Link href="/account">For pages</Link>
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Terms</Link>
               <Link href="/data-deletion">Delete your data</Link>

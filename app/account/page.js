@@ -2,7 +2,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '../../lib/db';
 import { decrypt, unsign } from '../../lib/crypto';
-import { getProfile, getRecentMedia } from '../../lib/instagram';
+import { getProfile, getRecentMedia, hasInsightsScope } from '../../lib/instagram';
+import FeeForm from './FeeForm';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your page · pipp' };
@@ -40,6 +41,9 @@ export default async function Account() {
   }
 
   const captioned = posts.filter((p) => p.caption);
+  const [{ count: waiting }] = await sql`
+    select count(*)::int as count from offers where ig_user_id = ${igUserId} and status = 'sent'
+  `;
 
   return (
     <main>
@@ -58,10 +62,20 @@ export default async function Account() {
           <div><span>Captions pipp can learn from</span><strong>{captioned.length}</strong></div>
         </div>
 
+        {!hasInsightsScope(account) && (
+          <p className="notice">
+            Reconnect once so pipp can show clients the reach of your campaign posts.{' '}
+            <a href="/api/instagram/login">Reconnect Instagram</a>
+          </p>
+        )}
+
         <div className="row">
-          <a className="button" href="/draft">Draft a caption</a>
+          <a className="button" href="/inbox">Campaign inbox{waiting ? ` (${waiting} new)` : ''}</a>
+          <a className="button button-small" href="/draft">Draft a caption</a>
           <a className="button button-small" href="/publish">Publish a post</a>
         </div>
+
+        <FeeForm current={account.fee_cents != null ? String(account.fee_cents / 100) : ''} />
 
         <h2>Recent captions</h2>
         {captioned.length === 0 ? (
