@@ -46,6 +46,17 @@ export default function NewCampaignForm({ pages }) {
     }
   }
 
+  function move(key, delta) {
+    setAssets((list) => {
+      const i = list.findIndex((a) => a.key === key);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= list.length) return list;
+      const next = [...list];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
   async function submit(e) {
     e.preventDefault();
     setError(null);
@@ -109,12 +120,17 @@ export default function NewCampaignForm({ pages }) {
 
       <label htmlFor="files">Photos and videos</label>
       <input id="files" type="file" accept={ACCEPT} multiple onChange={addFiles} />
-      <span className="small">Pages get the original files. Pages can post photos and videos straight from pipp (videos as Reels), or download them.</span>
+      <span className="small">Pages get the original files. Use the arrows to set the order. With two or more files, pages can post them as a carousel in this order (up to 10), or pick one.</span>
       {assets.length > 0 && (
         <ul className="files">
-          {assets.map((a) => (
+          {assets.map((a, i) => (
             <li key={a.key}>
+              <span className="n">{i + 1}.</span>
               <span>{a.filename}</span>
+              <span className="order-buttons">
+                <button type="button" aria-label={`Move ${a.filename} earlier`} disabled={i === 0} onClick={() => move(a.key, -1)}>↑</button>
+                <button type="button" aria-label={`Move ${a.filename} later`} disabled={i === assets.length - 1} onClick={() => move(a.key, 1)}>↓</button>
+              </span>
               <span className="muted">{a.status === 'uploading' ? 'Uploading…' : 'Ready'}</span>
               {a.status === 'done' && (
                 <button type="button" className="link-button" onClick={() => setAssets((l) => l.filter((x) => x.key !== a.key))}>

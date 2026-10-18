@@ -120,11 +120,11 @@ export async function createCampaign(input) {
       values (${client.id}, ${name}, ${brief}, ${extras}, ${link}, ${startsOn}, ${endsOn}, ${respondHours}, ${approveEdits})
       returning id
     `;
-    for (const a of assets) {
+    for (const [i, a] of assets.entries()) {
       await tx`
-        insert into campaign_assets (campaign_id, path, filename, content_type, size_bytes)
+        insert into campaign_assets (campaign_id, path, filename, content_type, size_bytes, sort_order)
         values (${campaign.id}, ${a.path}, ${String(a.filename || 'file').slice(0, 200)},
-                ${String(a.contentType || '')}, ${Number(a.size) || null})
+                ${String(a.contentType || '')}, ${Number(a.size) || null}, ${i})
       `;
     }
     for (const p of pages) {

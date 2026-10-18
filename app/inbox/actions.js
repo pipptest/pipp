@@ -6,7 +6,7 @@ import { db } from '../../lib/db';
 import { toCents } from '../../lib/money';
 import { notify, notifyPosted } from '../../lib/notify';
 import { OPEN_FOR_PAGE, captionEdited } from '../../lib/offers';
-import { isPublishable, startCampaignPublish } from '../../lib/publishing';
+import { MAX_CAROUSEL, isPublishable, startCampaignPublish } from '../../lib/publishing';
 import { currentAccount } from '../../lib/session';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -117,16 +117,27 @@ export async function acceptSelf(offerId, caption) {
 }
 
 // Accept and post from pipp, now or at a scheduled time.
-export async function acceptAndPublish(offerId, assetId, caption, scheduledFor) {
+// selection: { kind: 'single', assetId } or { kind: 'carousel' } (all campaign files, in the label's order).
+export async function acceptAndPublish(offerId, selection, caption, scheduledFor) {
   const ctx = await loadOffer(offerId);
   if (ctx.error) return ctx;
   const text = cleanCaption(caption);
   if (needsApproval(ctx, text)) return { error: 'You changed the caption, so send it to the client for approval first.' };
 
-  const [asset] = await ctx.sql`
-    select * from campaign_assets where id = ${String(assetId)} and campaign_id = ${ctx.campaign.id}
+  const all = await ctx.sql`
+    select * from campaign_assets where campaign_id = ${ctx.campaign.id} order by sort_order, created_at
   `;
-  if (!asset || !isPublishable(asset.content_type)) return { error: 'Choose one of the campaign files to post.' };
+  let assets;
+  if (selection?.kind === 'carousel') {
+    assets = all.filter((a) => isPublishable(a.content_type)).slice(0, MAX_CAROUSEL);
+    if (assets.length < 2) return { error: 'A carousel needs at least two photos or videos.' };
+  } else {
+    const one = all.find((a) => a.id === String(selection?.assetId || ''));
+    if (!one || !isPublishable(one.content_type)) return { error: 'Choose one of the campaign files to post.' };
+    assets = [one];
+  }
+  const kind = assets.length > 1 ? 'carousel' : 'single';
+  const assetIds = assets.map((a) => a.id);
 
   if (scheduledFor) {
     const at = new Date(scheduledFor);
@@ -134,8 +145,9 @@ export async function acceptAndPublish(offerId, assetId, caption, scheduledFor) 
     if (Number.isNaN(ms) || ms < 2 * 60 * 1000) return { error: 'Choose a time at least a few minutes from now.' };
     if (ms > 60 * 24 * 60 * 60 * 1000) return { error: 'Schedule within the next 60 days.' };
     const [updated] = await ctx.sql`
-      update offers set status = 'scheduled', method = 'app', caption_final = ${text || null}, asset_id = ${asset.id},
-        scheduled_for = ${at}, accepted_at = now(), publish_error = null, updated_at = now()
+      update offers set status = 'scheduled', method = 'app', caption_final = ${text || null}, asset_id = ${assetIds[0]},
+        asset_ids = ${ctx.sql.json(assetIds)}, post_kind = ${kind}, scheduled_for = ${at}, accepted_at = now(),
+        publish_error = null, updated_at = now()
       where id = ${offerId} and status in ${ctx.sql(OPEN_FOR_PAGE)} returning id
     `;
     if (!updated) return { error: 'This offer is no longer open.' };
@@ -145,12 +157,13 @@ export async function acceptAndPublish(offerId, assetId, caption, scheduledFor) 
   }
 
   const [claimed] = await ctx.sql`
-    update offers set status = 'publishing', method = 'app', caption_final = ${text || null}, asset_id = ${asset.id},
-      scheduled_for = null, accepted_at = now(), container_id = null, publish_error = null, updated_at = now()
+    update offers set status = 'publishing', method = 'app', caption_final = ${text || null}, asset_id = ${assetIds[0]},
+      asset_ids = ${ctx.sql.json(assetIds)}, post_kind = ${kind}, scheduled_for = null, accepted_at = now(),
+      container_id = null, carousel_items = null, publish_error = null, updated_at = now()
     where id = ${offerId} and status in ${ctx.sql(OPEN_FOR_PAGE)} returning *
   `;
   if (!claimed) return { error: 'This offer is no longer open.' };
-  const result = await startCampaignPublish(claimed, ctx.account, asset);
+  const result = await startCampaignPublish(claimed, ctx.account, assets);
   revalidatePath('/inbox');
   if (result.status === 'posted') {
     await notifyPosted(offerId);

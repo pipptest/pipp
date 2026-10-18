@@ -35,7 +35,8 @@ Payments are handled outside pipp during the beta.
 Also in the loop:
 - **Deadlines:** offers expire if the page doesn't reply within 24, 48 or 72 hours (set per campaign).
 - **Caption approval:** if a page rewrites the drafted caption, the label approves it or asks for changes first (on by default; adding #ad doesn't count as a rewrite).
-- **Posting:** photos post as feed posts, videos as Reels (also shown on the grid), now or scheduled for a date and time.
+- **Posting:** photos post as feed posts, videos as Reels (also shown on the grid), or 2–10 files as a carousel in the label's order (photos cropped to the first photo's shape), now or scheduled for a date and time.
+- **File order:** labels set the order of campaign files when creating a campaign; pages see them numbered and download them numbered.
 - **Page profiles:** labels see followers, engagement, average likes and comments, pipp history and recent posts (`/c/pages/[id]`).
 - **Email alerts:** new offers, approvals, change requests, accept/decline, expiry, post live, post failed.
 

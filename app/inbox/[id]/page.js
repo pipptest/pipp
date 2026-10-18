@@ -25,7 +25,7 @@ export default async function Offer({ params }) {
   if (!offer) notFound();
   const [campaign] = await sql`select * from campaigns where id = ${offer.campaign_id}`;
   const [client] = await sql`select name from clients where id = ${campaign.client_id}`;
-  const assetRows = await sql`select * from campaign_assets where campaign_id = ${campaign.id} order by created_at`;
+  const assetRows = await sql`select * from campaign_assets where campaign_id = ${campaign.id} order by sort_order, created_at`;
 
   offer = await refreshOffer(offer, campaign, account);
 
@@ -39,13 +39,14 @@ export default async function Offer({ params }) {
   }
 
   const assets = await Promise.all(
-    assetRows.map(async (a) => ({
+    assetRows.map(async (a, i) => ({
       id: a.id,
+      n: i + 1,
       filename: a.filename,
       isImage: /^image\/(jpeg|png|webp)$/.test(a.content_type),
       isVideo: a.content_type.startsWith('video/'),
       viewUrl: await signedDownload(a.path).catch(() => null),
-      downloadUrl: await signedDownload(a.path, a.filename).catch(() => null),
+      downloadUrl: await signedDownload(a.path, `${i + 1}-${a.filename}`).catch(() => null),
     })),
   );
   const window = [formatDay(campaign.starts_on), formatDay(campaign.ends_on)].filter(Boolean).join(' to ');
@@ -67,6 +68,7 @@ export default async function Offer({ params }) {
         {campaign.link && <p className="muted">Link: {campaign.link}</p>}
 
         <h2>Files</h2>
+        {assets.length > 1 && <p className="small">Numbered in the order {client?.name || 'the client'} wants them. Post them in this order as a carousel, or pick one.</p>}
         <div className="assets">
           {assets.map((a) => (
             <figure key={a.id}>
@@ -78,7 +80,7 @@ export default async function Offer({ params }) {
                 <div className="asset-box">{a.filename}</div>
               )}
               <figcaption>
-                <span>{a.filename}</span>
+                <span><strong>{a.n}.</strong> {a.filename}</span>
                 {a.downloadUrl && <a href={a.downloadUrl}>Download</a>}
               </figcaption>
             </figure>
@@ -141,7 +143,7 @@ export default async function Offer({ params }) {
             approvedCaption={offer.caption_approved ? offer.caption_final : null}
             approveEdits={campaign.approve_edits}
             scheduledFor={offer.scheduled_for ? new Date(offer.scheduled_for).toISOString() : null}
-            files={assets.filter((a) => a.isImage || a.isVideo).map((a) => ({ id: a.id, filename: a.filename, url: a.viewUrl, isVideo: a.isVideo }))}
+            files={assets.filter((a) => a.isImage || a.isVideo).map((a) => ({ id: a.id, n: a.n, filename: a.filename, url: a.viewUrl, isVideo: a.isVideo }))}
             username={account.username}
             clientName={client?.name || 'the client'}
           />

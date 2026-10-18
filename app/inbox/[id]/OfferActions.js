@@ -20,6 +20,8 @@ export default function OfferActions({
   const router = useRouter();
   const [caption, setCaption] = useState(initialCaption);
   const [fileId, setFileId] = useState(files[0]?.id || null);
+  const canCarousel = files.length >= 2;
+  const [kind, setKind] = useState(canCarousel ? 'carousel' : 'single');
   const [mode, setMode] = useState('choose'); // choose | confirm
   const [when, setWhen] = useState('now');
   const [at, setAt] = useState(() => localInputValue(Date.now() + 60 * 60 * 1000));
@@ -138,20 +140,43 @@ export default function OfferActions({
       ) : (
         <div className="review">
           <h2>Post this to @{username}?</h2>
-          {files.length > 1 && (
-            <div className="row" role="radiogroup" aria-label="File to post">
-              {files.map((f) => (
-                <label key={f.id} className={`photo-pick ${fileId === f.id ? 'is-on' : ''}`}>
-                  <input type="radio" name="file" checked={fileId === f.id} onChange={() => setFileId(f.id)} />
-                  {f.url ? (f.isVideo ? <video src={f.url} muted preload="metadata" /> : <img src={f.url} alt={f.filename} />) : f.filename}
-                </label>
-              ))}
-            </div>
+          {canCarousel && (
+            <fieldset className="when">
+              <legend>Post as</legend>
+              <label><input type="radio" name="kind" checked={kind === 'carousel'} onChange={() => setKind('carousel')} /> Carousel of all {Math.min(files.length, 10)} files, in order</label>
+              <label><input type="radio" name="kind" checked={kind === 'single'} onChange={() => setKind('single')} /> One file</label>
+            </fieldset>
           )}
-          {files.length === 1 && chosen?.url && (chosen.isVideo
-            ? <video className="review-img" src={chosen.url} controls preload="metadata" />
-            : <img className="review-img" src={chosen.url} alt={chosen.filename} />)}
-          {chosen?.isVideo && <p className="small">Videos post as Reels and also appear on your grid.</p>}
+          {kind === 'carousel' ? (
+            <>
+              <ol className="slides">
+                {files.slice(0, 10).map((f) => (
+                  <li key={f.id}>
+                    <span className="slide-n">{f.n}</span>
+                    {f.url ? (f.isVideo ? <video src={f.url} muted preload="metadata" /> : <img src={f.url} alt={f.filename} />) : <span>{f.filename}</span>}
+                  </li>
+                ))}
+              </ol>
+              <p className="small">Slides post in this order. Photos are cropped to match the first photo's shape, as Instagram requires.{files.length > 10 ? ' Instagram allows 10 slides, so only the first 10 are used.' : ''}</p>
+            </>
+          ) : (
+            <>
+              {files.length > 1 && (
+                <div className="row" role="radiogroup" aria-label="File to post">
+                  {files.map((f) => (
+                    <label key={f.id} className={`photo-pick ${fileId === f.id ? 'is-on' : ''}`}>
+                      <input type="radio" name="file" checked={fileId === f.id} onChange={() => setFileId(f.id)} />
+                      {f.url ? (f.isVideo ? <video src={f.url} muted preload="metadata" /> : <img src={f.url} alt={f.filename} />) : f.filename}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {files.length === 1 && chosen?.url && (chosen.isVideo
+                ? <video className="review-img" src={chosen.url} controls preload="metadata" />
+                : <img className="review-img" src={chosen.url} alt={chosen.filename} />)}
+              {chosen?.isVideo && <p className="small">Videos post as Reels and also appear on your grid.</p>}
+            </>
+          )}
           <p className="review-caption">{caption}</p>
 
           <fieldset className="when">
@@ -167,11 +192,12 @@ export default function OfferActions({
             <button
               type="button"
               className="button"
-              disabled={!!busy || !fileId}
+              disabled={!!busy || (kind === 'single' && !fileId)}
               onClick={async () => {
                 const iso = when === 'later' ? new Date(at).toISOString() : null;
-                const r = await run('publish', () => acceptAndPublish(offerId, fileId, caption, iso));
-                if (r?.processing) setNotice('Instagram is processing the video. pipp finishes posting it in the background and emails you when it’s live.');
+                const selection = kind === 'carousel' ? { kind: 'carousel' } : { kind: 'single', assetId: fileId };
+                const r = await run('publish', () => acceptAndPublish(offerId, selection, caption, iso));
+                if (r?.processing) setNotice('Instagram is still processing. pipp finishes posting in the background and emails you when it’s live.');
                 if (r?.ok) router.refresh();
               }}
             >
