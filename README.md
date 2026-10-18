@@ -18,6 +18,7 @@ This is the real app (private beta). The clickable design prototype lives separa
 - `/data-deletion` data deletion instructions (required by Meta)
 - `/connect` connect an Instagram professional account
 - `/account` the connected page: followers, posts and recent captions
+- `/draft` draft three captions in the page's voice from a brief (Claude API)
 
 Instagram login return address (enter in Meta's business login settings):
 `https://pipp-zeta.vercel.app/api/instagram/callback`
@@ -28,6 +29,7 @@ Set these in Vercel, never in the code:
 
 - `PIPP_EMAIL`: the email shown on the privacy, terms and data deletion pages
 - `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`: from Meta, Instagram > API setup with Instagram login
+- `ANTHROPIC_API_KEY`: for caption drafting (optional `ANTHROPIC_MODEL` overrides the model)
 - `SUPABASE_POSTGRES_URL`, `SUPABASE_JWT_SECRET`: added automatically by the Supabase integration
 
 Connected accounts' Instagram tokens are stored encrypted. The `instagram_accounts` table is created automatically on first use.
