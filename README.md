@@ -22,6 +22,7 @@ This is the real app (private beta). The clickable design prototype lives separa
 - `/publish` upload a photo, review, then publish it to the connected page
 - `/inbox` a page's campaign offers; `/inbox/[id]` brief, files, drafted caption, post from pipp or accept and post yourself
 - `/c` client (label) campaigns; `/c/signup`, `/c/login`; `/c/new` create a campaign; `/c/[id]` status and results per page
+- `/c/assets` a label's asset library: folders, uploads, search, move and delete; campaigns pick files from it and new campaign uploads are saved to it
 
 ## Marketplace loop (beta)
 

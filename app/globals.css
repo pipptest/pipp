@@ -238,6 +238,42 @@ main {
 .order-buttons button { min-width: 44px; min-height: 44px; border: 1px solid #8189a0; border-radius: 8px; background: #fff; font: inherit; cursor: pointer; }
 .order-buttons button:disabled { opacity: 0.35; cursor: default; }
 .files .n { font-weight: 700; width: 24px; flex: none !important; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+label.button:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+label.button { cursor: pointer; }
+.field-label { font-weight: 600; margin-top: 8px; }
+.client-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.client-nav .tag { margin: 0; }
+.tab { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px; color: var(--ink); text-decoration: none; font-weight: 600; }
+.tab:hover { background: #fff; color: var(--ink); }
+.tab.is-on { background: var(--ink); color: #fff; }
+.library { display: flex; flex-direction: column; gap: 14px; }
+.folder-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pill { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid #8189a0; background: #fff; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.pill.is-on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.pill .count { font-weight: 500; opacity: 0.75; }
+.inline-input { min-height: 44px; padding: 0 12px; font: inherit; border: 1px solid #8189a0; border-radius: 10px; background: #fff; color: var(--ink); }
+.folder-tools { gap: 12px; }
+.library-actions { gap: 12px; }
+.selection-bar { position: sticky; top: 8px; z-index: 2; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-radius: 12px; background: var(--ink); color: #fff; }
+.selection-bar .link-button { color: #fff; }
+.selection-bar select { min-height: 40px; border-radius: 8px; font: inherit; padding: 0 8px; }
+.asset-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.asset-grid li { position: relative; background: #fff; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+.asset-grid li.is-on { border-color: var(--accent); }
+.asset-grid img, .asset-grid video, .asset-grid .asset-box { width: 100%; height: 170px; object-fit: cover; background: var(--ground); display: flex; align-items: center; justify-content: center; }
+.asset-meta { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 14px; min-width: 0; }
+.asset-meta .name, .asset-choose .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.asset-pick { position: absolute; top: 6px; left: 6px; z-index: 1; width: 36px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.92); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.asset-pick input { width: 20px; height: 20px; accent-color: var(--accent); }
+.asset-pick:focus-within { outline: 3px solid var(--accent); }
+.picker { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; width: 100%; background: #fafbfc; }
+.asset-grid-small { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.asset-grid-small img, .asset-grid-small video, .asset-grid-small .asset-box { height: 120px; }
+.asset-choose { all: unset; position: relative; display: flex; flex-direction: column; cursor: pointer; width: 100%; }
+.asset-choose:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.asset-choose:disabled { cursor: default; opacity: 0.5; }
+.asset-choose .name { padding: 6px 8px; font-size: 13px; }
 .notice { padding: 12px 16px; border-radius: 10px; background: #e5e7fd; color: var(--accent-ink); font-weight: 600; }
 .notice-error { background: #fde7d3; color: #7a2e00; }
 .small { font-size: 15px; color: var(--muted); margin-top: 24px; }

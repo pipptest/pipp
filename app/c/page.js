@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { currentClient } from '../../lib/clientAuth';
 import { db } from '../../lib/db';
 import { dollars } from '../../lib/money';
-import { logOut } from './actions';
+import ClientNav from './ClientNav';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Campaigns · pipp' };
@@ -27,15 +27,10 @@ export default async function Campaigns() {
 
   return (
     <main>
+      <ClientNav name={client.name} current="campaigns" />
       <div className="page-head">
-        <div>
-          <p className="tag">{client.name}</p>
-          <h1 className="title">Campaigns</h1>
-        </div>
-        <div className="row">
-          <a className="button" href="/c/new">New campaign</a>
-          <form action={logOut}><button className="button button-small" type="submit">Log out</button></form>
-        </div>
+        <h1 className="title">Campaigns</h1>
+        <a className="button" href="/c/new">New campaign</a>
       </div>
 
       {campaigns.length === 0 ? (

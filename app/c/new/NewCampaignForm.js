@@ -2,48 +2,35 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createCampaign, prepareAssetUpload } from '../actions';
-
-const ACCEPT = 'image/jpeg,image/png,image/webp,video/mp4,video/quicktime';
-const MAX_MB = 50;
+import { createCampaign } from '../actions';
+import { ACCEPT, MAX_MB, useUploads } from '../useUploads';
+import LibraryPicker from './LibraryPicker';
 
 function dollars(cents) {
   return '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
-export default function NewCampaignForm({ pages }) {
+export default function NewCampaignForm({ pages, library }) {
   const router = useRouter();
-  const [assets, setAssets] = useState([]); // { filename, contentType, size, path, status }
+  const [assets, setAssets] = useState([]); // { key, filename, contentType, size, path, url }
+  const [picking, setPicking] = useState(false);
+  const uploads = useUploads({
+    onSaved: (item) => setAssets((list) => [...list, { ...item, key: item.path, status: 'done' }]),
+  });
   const [selected, setSelected] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  const uploading = assets.some((a) => a.status === 'uploading');
+  const uploading = uploads.uploading;
   const chosen = pages.filter((p) => selected[p.id]);
   const total = chosen.reduce((sum, p) => sum + p.feeCents, 0);
 
-  async function addFiles(e) {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    setError(null);
-    for (const file of files) {
-      if (file.size > MAX_MB * 1024 * 1024) {
-        setError(`${file.name} is over ${MAX_MB} MB.`);
-        continue;
-      }
-      const key = `${file.name}-${file.size}-${Date.now()}`;
-      setAssets((list) => [...list, { key, filename: file.name, contentType: file.type, size: file.size, status: 'uploading' }]);
-      try {
-        const prep = await prepareAssetUpload(file.type);
-        if (prep.error) throw new Error(prep.error);
-        const put = await fetch(prep.url, { method: 'PUT', headers: { 'content-type': file.type }, body: file });
-        if (!put.ok) throw new Error(`Uploading ${file.name} failed.`);
-        setAssets((list) => list.map((a) => (a.key === key ? { ...a, path: prep.path, status: 'done' } : a)));
-      } catch (err) {
-        setError(err.message);
-        setAssets((list) => list.filter((a) => a.key !== key));
-      }
-    }
+  function addFromLibrary(items) {
+    setAssets((list) => {
+      const have = new Set(list.map((a) => a.path));
+      return [...list, ...items.filter((i) => !have.has(i.path)).map((i) => ({ ...i, key: i.path, status: 'done' }))];
+    });
+    setPicking(false);
   }
 
   function move(key, delta) {
@@ -72,7 +59,7 @@ export default function NewCampaignForm({ pages }) {
       respondHours: form.get('respondHours'),
       approveEdits: form.get('approveEdits') === 'on',
       pageIds: chosen.map((p) => p.id),
-      assets: assets.filter((a) => a.status === 'done').map(({ path, filename, contentType, size }) => ({ path, filename, contentType, size })),
+      assets: assets.map(({ path, filename, contentType, size }) => ({ path, filename, contentType, size })),
     }).catch(() => ({ error: 'Something went wrong. Try again.' }));
     if (result.error) {
       setError(result.error);
@@ -118,9 +105,21 @@ export default function NewCampaignForm({ pages }) {
         <span><strong>Approve edited captions before they post</strong><br /><span className="muted">Drafts go straight through. You only review a caption if a page rewrites it.</span></span>
       </label>
 
-      <label htmlFor="files">Photos and videos</label>
-      <input id="files" type="file" accept={ACCEPT} multiple onChange={addFiles} />
-      <span className="small">Pages get the original files. Use the arrows to set the order. With two or more files, pages can post them as a carousel in this order (up to 10), or pick one.</span>
+      <span className="field-label">Photos and videos</span>
+      <div className="row">
+        <button type="button" className="button button-small" onClick={() => setPicking((v) => !v)} aria-expanded={picking}>
+          Choose from your assets
+        </button>
+        <label className="button button-small">
+          Upload new
+          <input type="file" accept={ACCEPT} multiple className="visually-hidden"
+            onChange={(e) => { uploads.upload(e.target.files); e.target.value = ''; }} />
+        </label>
+      </div>
+      {picking && <LibraryPicker library={library} alreadyPaths={assets.map((a) => a.path)} onAdd={addFromLibrary} onCancel={() => setPicking(false)} />}
+      {uploads.pending.length > 0 && <p className="small" role="status">Uploading {uploads.pending.map((p) => p.filename).join(', ')}…</p>}
+      {uploads.error && <p className="notice notice-error" role="alert">{uploads.error}</p>}
+      <span className="small">New uploads are saved to your assets (Unsorted) so you can reuse them. Up to {MAX_MB} MB each. Pages get the original files. Use the arrows to set the order. With two or more files, pages can post them as a carousel in this order (up to 10), or pick one.</span>
       {assets.length > 0 && (
         <ul className="files">
           {assets.map((a, i) => (
@@ -131,12 +130,9 @@ export default function NewCampaignForm({ pages }) {
                 <button type="button" aria-label={`Move ${a.filename} earlier`} disabled={i === 0} onClick={() => move(a.key, -1)}>↑</button>
                 <button type="button" aria-label={`Move ${a.filename} later`} disabled={i === assets.length - 1} onClick={() => move(a.key, 1)}>↓</button>
               </span>
-              <span className="muted">{a.status === 'uploading' ? 'Uploading…' : 'Ready'}</span>
-              {a.status === 'done' && (
-                <button type="button" className="link-button" onClick={() => setAssets((l) => l.filter((x) => x.key !== a.key))}>
-                  Remove
-                </button>
-              )}
+              <button type="button" className="link-button" onClick={() => setAssets((l) => l.filter((x) => x.key !== a.key))}>
+                Remove
+              </button>
             </li>
           ))}
         </ul>

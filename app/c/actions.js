@@ -5,7 +5,8 @@ import { currentClient, endClientSession, hashPassword, startClientSession, veri
 import { db } from '../../lib/db';
 import { notify } from '../../lib/notify';
 import { ensureScheduler } from '../../lib/scheduler';
-import { newPath, signedUpload } from '../../lib/storage';
+import { UPLOADS, newPath, remove, signedUpload } from '../../lib/storage';
+import { revalidatePath } from 'next/cache';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -180,4 +181,109 @@ export async function requestChanges(offerId, note) {
   if (!updated) return { error: 'This caption is no longer waiting for approval.' };
   await notify('changes_requested', offerId);
   return { ok: true };
+}
+
+
+// ---- Asset library ----
+
+const UUID = /^[0-9a-f-]{36}$/i;
+
+async function ownFolder(sql, clientId, folderId) {
+  if (!folderId) return null;
+  if (!UUID.test(String(folderId))) return undefined;
+  const [f] = await sql`select id from library_folders where id = ${folderId} and client_id = ${clientId}`;
+  return f ? f.id : undefined;
+}
+
+// Saves uploaded files (already in storage) into the library. Returns their library rows.
+export async function registerUploads(items, folderId = null) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  const sql = await db();
+  const folder = await ownFolder(sql, client.id, folderId);
+  if (folder === undefined) return { error: 'That folder no longer exists.' };
+  const prefix = `clients/${client.id}/`;
+  const list = (Array.isArray(items) ? items : []).slice(0, 50);
+  if (list.some((a) => typeof a.path !== 'string' || !a.path.startsWith(prefix) || a.path.includes('..'))) {
+    return { error: 'One of the uploads does not belong to this account.' };
+  }
+  const saved = [];
+  for (const a of list) {
+    const [row] = await sql`
+      insert into library_assets (client_id, folder_id, path, filename, content_type, size_bytes)
+      values (${client.id}, ${folder}, ${a.path}, ${String(a.filename || 'file').slice(0, 200)},
+              ${String(a.contentType || '')}, ${Number(a.size) || null})
+      on conflict (path) do update set folder_id = coalesce(excluded.folder_id, library_assets.folder_id)
+      returning id, path
+    `;
+    saved.push(row);
+  }
+  revalidatePath('/c/assets');
+  return { ok: true, saved };
+}
+
+export async function createFolder(name) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  const clean = String(name || '').trim().slice(0, 80);
+  if (!clean) return { error: 'Give the folder a name.' };
+  const sql = await db();
+  const [folder] = await sql`insert into library_folders (client_id, name) values (${client.id}, ${clean}) returning id`;
+  revalidatePath('/c/assets');
+  return { ok: true, id: folder.id };
+}
+
+export async function renameFolder(folderId, name) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  const clean = String(name || '').trim().slice(0, 80);
+  if (!clean) return { error: 'Give the folder a name.' };
+  if (!UUID.test(String(folderId))) return { error: 'Folder not found.' };
+  const sql = await db();
+  const [f] = await sql`update library_folders set name = ${clean} where id = ${folderId} and client_id = ${client.id} returning id`;
+  if (!f) return { error: 'Folder not found.' };
+  revalidatePath('/c/assets');
+  return { ok: true };
+}
+
+// Deletes a folder; its files move to Unsorted, nothing is lost.
+export async function deleteFolder(folderId) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  if (!UUID.test(String(folderId))) return { error: 'Folder not found.' };
+  const sql = await db();
+  await sql`update library_assets set folder_id = null where folder_id = ${folderId} and client_id = ${client.id}`;
+  await sql`delete from library_folders where id = ${folderId} and client_id = ${client.id}`;
+  revalidatePath('/c/assets');
+  return { ok: true };
+}
+
+export async function moveAssets(assetIds, folderId) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  const ids = (Array.isArray(assetIds) ? assetIds : []).filter((id) => UUID.test(String(id))).slice(0, 200);
+  if (!ids.length) return { error: 'Choose at least one file.' };
+  const sql = await db();
+  const folder = await ownFolder(sql, client.id, folderId);
+  if (folder === undefined) return { error: 'That folder no longer exists.' };
+  await sql`update library_assets set folder_id = ${folder} where id in ${sql(ids)} and client_id = ${client.id}`;
+  revalidatePath('/c/assets');
+  return { ok: true };
+}
+
+// Removes files from the library. A file already used in a campaign stays available
+// to that campaign's pages; it's only deleted from storage when nothing uses it.
+export async function deleteAssets(assetIds) {
+  const client = await currentClient();
+  if (!client) return { error: 'Your session has ended. Log in again.' };
+  const ids = (Array.isArray(assetIds) ? assetIds : []).filter((id) => UUID.test(String(id))).slice(0, 200);
+  if (!ids.length) return { error: 'Choose at least one file.' };
+  const sql = await db();
+  const rows = await sql`delete from library_assets where id in ${sql(ids)} and client_id = ${client.id} returning path`;
+  for (const r of rows) {
+    const [{ n }] = await sql`select count(*)::int as n from campaign_assets where path = ${r.path}`;
+    if (n === 0) await remove(UPLOADS, r.path).catch(() => {});
+  }
+  revalidatePath('/c/assets');
+  return { ok: true, deleted: rows.length };
 }

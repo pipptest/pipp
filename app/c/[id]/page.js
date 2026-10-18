@@ -4,6 +4,7 @@ import { db } from '../../../lib/db';
 import { dollars } from '../../../lib/money';
 import { engagement, refreshOffer, statusLabel } from '../../../lib/offers';
 import ReviewCaption from './ReviewCaption';
+import ClientNav from '../ClientNav';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Campaign · pipp' };
@@ -48,6 +49,7 @@ export default async function Campaign({ params, searchParams }) {
 
   return (
     <main>
+      <ClientNav name={client.name} current="campaigns" />
       <p className="small"><a href="/c">All campaigns</a></p>
       {sent && <p className="notice">Sent. Each page now has your files, your brief and a caption drafted in its voice.</p>}
       <div className="page-head">
