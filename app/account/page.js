@@ -8,8 +8,10 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your page · pipp' };
 
 function formatDate(iso) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' });
 }
+
+const TYPES = { BUSINESS: 'Business account', MEDIA_CREATOR: 'Creator account', CREATOR: 'Creator account' };
 
 export default async function Account() {
   const igUserId = unsign((await cookies()).get('pipp_session')?.value);
@@ -45,7 +47,7 @@ export default async function Account() {
         <p className="tag">Connected</p>
         <h1>@{profile.username}</h1>
         <p className="date">
-          {profile.account_type ? profile.account_type.toLowerCase().replace('_', ' ') + ' account · ' : ''}
+          {profile.account_type ? (TYPES[profile.account_type] || 'Professional account') + ' · ' : ''}
           connected {formatDate(account.connected_at)}
         </p>
         {problem && <p className="notice notice-error">{problem}</p>}
@@ -65,7 +67,7 @@ export default async function Account() {
               <li key={p.id}>
                 <p>{p.caption}</p>
                 <span>
-                  {formatDate(p.timestamp)} · {p.media_type.toLowerCase().replace('_', ' ')}
+                  {formatDate(p.timestamp)} · {p.media_type.toLowerCase().replace('_', ' ').replace('carousel album', 'carousel')}
                   {typeof p.like_count === 'number' ? ` · ${p.like_count} likes` : ''}
                   {' · '}<a href={p.permalink} target="_blank" rel="noreferrer">View on Instagram</a>
                 </span>
