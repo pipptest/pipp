@@ -2,7 +2,10 @@ import { notFound, redirect } from 'next/navigation';
 import { db } from '../../../lib/db';
 import { dollars } from '../../../lib/money';
 import { OPEN_FOR_PAGE, engagement, refreshOffer, statusLabel } from '../../../lib/offers';
-import { currentAccount } from '../../../lib/session';
+import { accessToken, platformLabel, platformOf } from '../../../lib/platforms';
+import { currentPage } from '../../../lib/session';
+import { creatorInfo } from '../../../lib/tiktok';
+import { maxLength } from '../../../lib/x';
 import { signedDownload } from '../../../lib/storage';
 import { writeDraft } from '../../../lib/campaignDraft';
 import OfferActions from './OfferActions';
@@ -15,14 +18,17 @@ function formatDay(d) {
 }
 
 export default async function Offer({ params }) {
-  const account = await currentAccount();
-  if (!account) redirect('/connect');
+  const page = await currentPage();
+  if (!page) redirect('/connect');
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   const sql = await db();
-  let [offer] = await sql`select * from offers where id = ${id} and ig_user_id = ${account.ig_user_id}`;
+  let [offer] = await sql`select * from offers where id = ${id} and ig_user_id in ${sql(page.keys)}`;
   if (!offer) notFound();
+  const account = page.accounts.find((a) => a.ig_user_id === offer.ig_user_id);
+  const platform = platformOf(account);
+  const label = platformLabel(account);
   const [campaign] = await sql`select * from campaigns where id = ${offer.campaign_id}`;
   const [client] = await sql`select name from clients where id = ${campaign.client_id}`;
   const assetRows = await sql`select * from campaign_assets where campaign_id = ${campaign.id} order by sort_order, created_at`;
@@ -49,13 +55,32 @@ export default async function Offer({ params }) {
       downloadUrl: await signedDownload(a.path, `${i + 1}-${a.filename}`).catch(() => null),
     })),
   );
+  // TikTok asks apps to check the creator's current posting options right before showing the post screen.
+  let tiktok = null;
+  if (platform === 'tiktok' && ['sent', 'approved', 'failed'].includes(offer.status)) {
+    try {
+      const info = await creatorInfo(await accessToken(account));
+      tiktok = {
+        nickname: info.creator_nickname || account.display_name || account.username,
+        avatar: info.creator_avatar_url || null,
+        privacyOptions: info.privacy_level_options || [],
+        commentDisabled: Boolean(info.comment_disabled),
+        duetDisabled: Boolean(info.duet_disabled),
+        stitchDisabled: Boolean(info.stitch_disabled),
+        maxSeconds: info.max_video_post_duration_sec || null,
+      };
+    } catch (err) {
+      tiktok = { error: err.message.replace(/^[^:]+ failed: /, '') };
+    }
+  }
+
   const window = [formatDay(campaign.starts_on), formatDay(campaign.ends_on)].filter(Boolean).join(' to ');
 
   return (
     <main>
       <p className="small"><a href="/inbox">Campaign inbox</a></p>
       <article className="doc doc-wide">
-        <p className="tag">{client?.name}</p>
+        <p className="tag">{client?.name} · for @{account.username} on {label}</p>
         <h1>{campaign.name}</h1>
         <p className="date">
           {dollars(offer.fee_cents)} · {window ? `post ${window}` : 'no post window set'} ·{' '}
@@ -68,7 +93,14 @@ export default async function Offer({ params }) {
         {campaign.link && <p className="muted">Link: {campaign.link}</p>}
 
         <h2>Files</h2>
-        {assets.length > 1 && <p className="small">Numbered in the order {client?.name || 'the client'} wants them. Post them in this order as a carousel, or pick one.</p>}
+        {assets.length > 1 && (
+          <p className="small">
+            Numbered in the order {client?.name || 'the client'} wants them.{' '}
+            {platform === 'instagram' ? 'Post them in this order as a carousel, or pick one.'
+              : platform === 'x' ? 'Post up to 4 photos in this order, or pick one.'
+              : 'TikTok takes one video per post, so pick the video.'}
+          </p>
+        )}
         <div className="assets">
           {assets.map((a) => (
             <figure key={a.id}>
@@ -90,9 +122,9 @@ export default async function Offer({ params }) {
         {offer.status === 'posted' && (
           <section className="card">
             <h2>Posted</h2>
-            {offer.permalink && <p><a href={offer.permalink} target="_blank" rel="noreferrer">View the post on Instagram</a></p>}
+            {offer.permalink && <p><a href={offer.permalink} target="_blank" rel="noreferrer">View the post on {label}</a></p>}
             <div className="stats">
-              <div><span>Reach</span><strong>{offer.stats?.reach?.toLocaleString('en-US') ?? '—'}</strong></div>
+              <div><span>{platform === 'instagram' ? 'Reach' : 'Views'}</span><strong>{offer.stats?.reach?.toLocaleString('en-US') ?? '—'}</strong></div>
               <div><span>Engagements</span><strong>{engagement(offer.stats)?.toLocaleString('en-US') ?? '—'}</strong></div>
               <div><span>You are owed</span><strong>{dollars(offer.fee_cents)}</strong></div>
             </div>
@@ -101,7 +133,7 @@ export default async function Offer({ params }) {
         {offer.status === 'accepted' && offer.method === 'self' && (
           <section className="card">
             <h2>Waiting for your post</h2>
-            <p>Post it on Instagram with this caption. pipp spots it on your account automatically; reopen this page to check.</p>
+            <p>Post it on {label} with this caption. pipp spots it on your account automatically{platform === 'instagram' ? '' : ' within about 20 minutes'}; reopen this page to check.</p>
             <p className="pre caption-box">{offer.caption_final}</p>
           </section>
         )}
@@ -117,7 +149,7 @@ export default async function Offer({ params }) {
         {offer.status === 'publishing' && (
           <section className="card">
             <h2>Publishing</h2>
-            <p>Instagram is processing your post. Videos can take a few minutes; pipp finishes it automatically and emails you when it's live.</p>
+            <p>{label} is processing your post. Videos can take a few minutes; pipp finishes it automatically and emails you when it's live.</p>
           </section>
         )}
         {offer.status === 'failed' && offer.publish_error && (
@@ -145,6 +177,10 @@ export default async function Offer({ params }) {
             scheduledFor={offer.scheduled_for ? new Date(offer.scheduled_for).toISOString() : null}
             files={assets.filter((a) => a.isImage || a.isVideo).map((a) => ({ id: a.id, n: a.n, filename: a.filename, url: a.viewUrl, isVideo: a.isVideo }))}
             username={account.username}
+            platform={platform}
+            platformLabel={label}
+            maxChars={platform === 'x' ? maxLength(account) : 2200}
+            tiktok={tiktok}
             clientName={client?.name || 'the client'}
           />
         )}

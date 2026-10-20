@@ -297,3 +297,26 @@ footer {
   flex-wrap: wrap;
 }
 footer a { color: var(--muted); }
+
+/* Linked accounts: Instagram, X, TikTok */
+.platform { display: inline-block; width: fit-content; align-self: flex-start; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; vertical-align: 1px; background: var(--ground); color: var(--ink); border: 1px solid var(--line); }
+.platform-instagram { background: #fdebf3; color: #8a1546; border-color: #f4c6da; }
+.platform-x { background: var(--ink); color: #fff; border-color: var(--ink); }
+.platform-tiktok { background: #e3f8f7; color: #0b5e5a; border-color: #b5e9e5; }
+.accounts { list-style: none; padding: 0; margin: 20px 0; display: grid; gap: 14px; }
+.account-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.account-card .stats { margin: 12px 0 4px; }
+.account-card details { margin-top: 8px; }
+.account-card summary { cursor: pointer; font-weight: 600; }
+.connect-list { list-style: none; padding: 0; margin: 20px 0; display: grid; gap: 10px; }
+.connect-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.connect-list li > span { display: grid; gap: 2px; }
+.button.is-disabled { background: var(--ground); color: var(--muted); border-color: var(--line); cursor: default; pointer-events: none; }
+.is-error { color: #9b2c00; }
+.fee-field { display: grid; gap: 6px; }
+.tiktok-settings { display: grid; gap: 10px; margin: 14px 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.tiktok-settings select { max-width: 280px; padding: 10px; border-radius: 8px; border: 1px solid var(--line); font: inherit; }
+.text-post { aspect-ratio: 1; display: flex; align-items: center; padding: 14px; font-size: 14px; text-align: left; line-height: 1.4; }
+@media (max-width: 560px) {
+  .connect-list li { flex-direction: column; align-items: flex-start; }
+}

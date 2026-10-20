@@ -17,13 +17,13 @@ export default function DataDeletion() {
             Email <a href={`mailto:${SITE.contactEmail}?subject=Delete%20my%20data`}>{SITE.contactEmail}</a> with
             the subject "Delete my data".
           </li>
-          <li>Include the Instagram username of each account you connected.</li>
+          <li>Include the username of each account you connected (Instagram, X or TikTok).</li>
           <li>We confirm by email and delete the data within 30 days.</li>
         </ol>
 
         <h2>Removing pipp's access</h2>
         <p>
-          You can also remove pipp from Instagram's settings, under apps and websites. This stops pipp reading
+          You can also remove pipp in each platform's settings (Instagram: apps and websites; X: connected apps; TikTok: security and permissions). This stops pipp reading
           from or posting to your account. To have the data already collected deleted, send the email above.
         </p>
 

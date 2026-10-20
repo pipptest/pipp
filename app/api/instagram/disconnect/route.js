@@ -1,18 +1,6 @@
-import { NextResponse } from 'next/server';
-import { db } from '../../../../lib/db';
-import { unsign } from '../../../../lib/crypto';
-import { siteOrigin } from '../../../../lib/instagram';
+import { POST as disconnect } from '../../accounts/disconnect/route';
 
 export const dynamic = 'force-dynamic';
 
-// Removes the connected account and everything stored from it.
-export async function POST(request) {
-  const igUserId = unsign(request.cookies.get('pipp_session')?.value);
-  if (igUserId) {
-    const sql = await db();
-    await sql`delete from instagram_accounts where ig_user_id = ${igUserId}`;
-  }
-  const res = NextResponse.redirect(siteOrigin(request) + '/connect?disconnected=1', 303);
-  res.cookies.delete('pipp_session');
-  return res;
-}
+// Kept for older links: disconnects every account on the page.
+export const POST = disconnect;

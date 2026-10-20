@@ -6,6 +6,8 @@ import { createCampaign } from '../actions';
 import { ACCEPT, MAX_MB, useUploads } from '../useUploads';
 import LibraryPicker from './LibraryPicker';
 
+const PLATFORM_LABELS = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok' };
+
 function dollars(cents) {
   return '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
@@ -18,6 +20,9 @@ export default function NewCampaignForm({ pages, library }) {
     onSaved: (item) => setAssets((list) => [...list, { ...item, key: item.path, status: 'done' }]),
   });
   const [selected, setSelected] = useState({});
+  const [platform, setPlatform] = useState('all');
+  const platformsHere = ['instagram', 'x', 'tiktok'].filter((p) => pages.some((pg) => pg.platform === p));
+  const shownPages = pages.filter((p) => platform === 'all' || p.platform === platform);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -119,7 +124,7 @@ export default function NewCampaignForm({ pages, library }) {
       {picking && <LibraryPicker library={library} alreadyPaths={assets.map((a) => a.path)} onAdd={addFromLibrary} onCancel={() => setPicking(false)} />}
       {uploads.pending.length > 0 && <p className="small" role="status">Uploading {uploads.pending.map((p) => p.filename).join(', ')}…</p>}
       {uploads.error && <p className="notice notice-error" role="alert">{uploads.error}</p>}
-      <span className="small">New uploads are saved to your assets (Unsorted) so you can reuse them. Up to {MAX_MB} MB each. Pages get the original files. Use the arrows to set the order. With two or more files, pages can post them as a carousel in this order (up to 10), or pick one.</span>
+      <span className="small">New uploads are saved to your assets (Unsorted) so you can reuse them. Up to {MAX_MB} MB each. Pages get the original files. Use the arrows to set the order. With two or more files, Instagram pages can post them as a carousel in this order (up to 10) and X pages as a set of up to 4 photos, or pick one. TikTok pages post one video.</span>
       {assets.length > 0 && (
         <ul className="files">
           {assets.map((a, i) => (
@@ -140,17 +145,26 @@ export default function NewCampaignForm({ pages, library }) {
 
       <fieldset className="pages">
         <legend>Pages</legend>
+        {platformsHere.length > 1 && (
+          <div className="folder-bar" role="group" aria-label="Filter by platform">
+            {[['all', 'All'], ...platformsHere.map((p) => [p, PLATFORM_LABELS[p]])].map(([key, label]) => (
+              <button key={key} type="button" className={`pill ${platform === key ? 'is-on' : ''}`} aria-pressed={platform === key} onClick={() => setPlatform(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {pages.length === 0 ? (
-          <p className="muted">No pages are taking campaigns yet. A page appears here once it connects and sets a fee.</p>
+          <p className="muted">No pages are taking campaigns yet. An account appears here once it connects and sets a fee.</p>
         ) : (
-          pages.map((p) => (
+          shownPages.map((p) => (
             <label key={p.id} className="page-option">
               <input
                 type="checkbox"
                 checked={!!selected[p.id]}
                 onChange={(e) => setSelected((s) => ({ ...s, [p.id]: e.target.checked }))}
               />
-              <span className="grow"><strong>@{p.username}</strong>
+              <span className="grow"><span className={`platform platform-${p.platform}`}>{PLATFORM_LABELS[p.platform]}</span> <strong>@{p.username}</strong>
                 <span className="muted">
                   {[
                     p.followers != null && `${p.followers.toLocaleString('en-US')} followers`,
@@ -159,7 +173,7 @@ export default function NewCampaignForm({ pages, library }) {
                     p.campaignsDone ? `${p.campaignsDone} pipp ${p.campaignsDone === 1 ? 'campaign' : 'campaigns'}` : 'New to pipp',
                   ].filter(Boolean).join(' · ')}
                 </span>
-                <a href={`/c/pages/${p.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>View profile</a>
+                <a href={`/c/pages/${p.profileId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>View profile</a>
               </span>
               <strong>{dollars(p.feeCents)}</strong>
             </label>
@@ -168,7 +182,7 @@ export default function NewCampaignForm({ pages, library }) {
       </fieldset>
 
       <p className="total">
-        {chosen.length} {chosen.length === 1 ? 'page' : 'pages'} · <strong>{dollars(total)}</strong> if all accept and post
+        {chosen.length} {chosen.length === 1 ? 'account' : 'accounts'} · <strong>{dollars(total)}</strong> if all accept and post
       </p>
 
       {error && <p className="notice notice-error" role="alert">{error}</p>}

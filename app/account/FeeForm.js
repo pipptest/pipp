@@ -3,14 +3,19 @@
 import { useActionState } from 'react';
 import { saveSettings } from '../inbox/actions';
 
-export default function FeeForm({ currentFee, currentEmail }) {
+export default function FeeForm({ accounts, currentEmail }) {
   const [state, action, pending] = useActionState(saveSettings, null);
   return (
     <form action={action} className="form form-inline">
       <h2>Settings</h2>
-      <label htmlFor="fee">Your fee per post (USD)</label>
-      <input id="fee" name="fee" inputMode="decimal" defaultValue={state?.values?.fee ?? currentFee} placeholder="350" />
-      <span className="small">Clients only see your page once a fee is set. Clear it to stop taking campaigns.</span>
+      {accounts.map((a) => (
+        <div key={a.key} className="fee-field">
+          <label htmlFor={`fee-${a.key}`}>Fee per post on {a.label} (@{a.username}), USD</label>
+          <input id={`fee-${a.key}`} name={`fee:${a.key}`} inputMode="decimal"
+            defaultValue={state?.values?.fees?.[a.key] ?? a.fee} placeholder="350" />
+        </div>
+      ))}
+      <span className="small">Clients only see an account once it has a fee. Clear a fee to stop taking campaigns there.</span>
       <label htmlFor="email">Email for campaign alerts</label>
       <input id="email" name="email" type="email" autoComplete="email" defaultValue={state?.values?.email ?? currentEmail} placeholder="you@example.com" />
       <span className="small">pipp emails you when a campaign arrives, a caption is approved, or a post goes live.</span>

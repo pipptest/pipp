@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import { db } from '../../lib/db';
-import { decrypt } from '../../lib/crypto';
-import { currentAccount } from '../../lib/session';
+import { hasInsightsScope } from '../../lib/instagram';
+import { PLATFORMS, PLATFORM_ORDER, platformLabel, platformOf, profileUrl } from '../../lib/platforms';
+import { currentPage } from '../../lib/session';
+import { refreshStats } from '../../lib/snapshot';
 import { isExpired } from '../../lib/tokens';
-import { getProfile, getRecentMedia, hasInsightsScope } from '../../lib/instagram';
 import FeeForm from './FeeForm';
-import { saveSnapshot } from '../../lib/snapshot';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your page · pipp' };
@@ -15,97 +15,141 @@ function formatDate(iso) {
 }
 
 const TYPES = { BUSINESS: 'Business account', MEDIA_CREATOR: 'Creator account', CREATOR: 'Creator account' };
+const num = (n) => (typeof n === 'number' ? n.toLocaleString('en-US') : 'Not available');
 
-export default async function Account() {
-  const account = await currentAccount();
-  if (!account) redirect('/connect');
-  const igUserId = account.ig_user_id;
+const POSTS_WORD = { instagram: 'Posts', x: 'Posts', tiktok: 'Videos' };
+
+export default async function Account({ searchParams }) {
+  const page = await currentPage();
+  if (!page) redirect('/connect');
+  const params = await searchParams;
   const sql = await db();
 
-  let profile = account;
-  let posts = [];
-  let problem = null;
-  try {
-    const token = decrypt(account.access_token_enc);
-    const [fresh, media] = await Promise.all([getProfile(token), getRecentMedia(token)]);
-    profile = { ...account, ...fresh };
-    posts = media;
-    await saveSnapshot(igUserId, media, fresh.followers_count).catch(() => {});
-    await sql`
-      update instagram_accounts
-      set followers_count = ${fresh.followers_count ?? null}, media_count = ${fresh.media_count ?? null}, updated_at = now()
-      where ig_user_id = ${igUserId}
-    `;
-  } catch (err) {
-    console.error('Account refresh failed:', err.message);
-    problem = 'Could not refresh from Instagram just now. Showing the details saved when you connected.';
-  }
+  const accounts = await Promise.all(page.accounts.map(async (a) => {
+    if (isExpired(a)) return { ...a, problem: 'expired' };
+    try {
+      return await refreshStats(a);
+    } catch (err) {
+      console.error(`Account refresh failed for @${a.username}:`, err.message);
+      return { ...a, problem: /connection has ended|Reconnect|invalid|revoked/i.test(err.message) ? 'expired' : 'refresh' };
+    }
+  }));
 
-  const captioned = posts.filter((p) => p.caption);
   const [{ count: waiting }] = await sql`
-    select count(*)::int as count from offers where ig_user_id = ${igUserId} and status = 'sent'
+    select count(*)::int as count from offers where ig_user_id in ${sql(page.keys)} and status = 'sent'
   `;
+  const linked = new Set(accounts.map(platformOf));
+  const canLink = PLATFORM_ORDER.filter((p) => !linked.has(p));
+  const email = accounts.find((a) => a.email)?.email || '';
 
   return (
     <main>
       <article className="doc">
-        <p className="tag">Connected</p>
-        <h1>@{profile.username}</h1>
+        <p className="tag">Your page on pipp</p>
+        <h1>@{page.account.username}</h1>
         <p className="date">
-          {profile.account_type ? (TYPES[profile.account_type] || 'Professional account') + ' · ' : ''}
-          connected {formatDate(account.connected_at)}
+          {accounts.length === 1 ? '1 account linked' : `${accounts.length} accounts linked`} · clients can book each one separately
         </p>
-        {isExpired(account) ? (
-          <p className="notice notice-error">
-            Your Instagram connection has expired, so pipp can't read or post for this page.{' '}
-            <a href="/api/instagram/login">Reconnect Instagram</a>
-          </p>
-        ) : problem && <p className="notice notice-error">{problem}</p>}
+        {params?.linked && PLATFORMS[params.linked] && <p className="notice">{PLATFORMS[params.linked].label} is linked. Set a fee for it below to start taking campaigns there.</p>}
+        {params?.unlinked && <p className="notice">That account was disconnected and its data deleted from pipp.</p>}
+        {params?.need === 'instagram' && <p className="notice">Publishing a standalone post works with Instagram. Link Instagram below to use it.</p>}
 
-        <div className="stats">
-          <div><span>Followers</span><strong>{profile.followers_count?.toLocaleString('en-US') ?? 'Not available'}</strong></div>
-          <div><span>Posts</span><strong>{profile.media_count?.toLocaleString('en-US') ?? 'Not available'}</strong></div>
-          <div><span>Captions pipp can learn from</span><strong>{captioned.length}</strong></div>
-        </div>
+        <ul className="accounts">
+          {accounts.map((a) => {
+            const platform = platformOf(a);
+            const recent = a.snapshot?.recent || [];
+            return (
+              <li key={a.id} className="account-card">
+                <div className="row row-between">
+                  <div>
+                    <span className={`platform platform-${platform}`}>{platformLabel(a)}</span>{' '}
+                    <strong><a href={profileUrl(a)} target="_blank" rel="noreferrer">@{a.username}</a></strong>
+                    <span className="muted">
+                      {' '}{platform === 'instagram' && a.account_type ? `${TYPES[a.account_type] || 'Professional account'} · ` : ''}
+                      linked {formatDate(a.connected_at)}
+                    </span>
+                  </div>
+                  <form action="/api/accounts/disconnect" method="post">
+                    <input type="hidden" name="account" value={a.ig_user_id} />
+                    <button className="link-button" type="submit">Disconnect</button>
+                  </form>
+                </div>
+                {a.problem === 'expired' && (
+                  <p className="notice notice-error">
+                    This {platformLabel(a)} connection has ended, so pipp can't read or post for it.{' '}
+                    <a href={PLATFORMS[platform].loginPath}>Reconnect {platformLabel(a)}</a>
+                  </p>
+                )}
+                {a.problem === 'refresh' && <p className="small">Couldn’t refresh from {platformLabel(a)} just now. Showing saved details.</p>}
+                {platform === 'instagram' && !hasInsightsScope(a) && (
+                  <p className="notice">
+                    Reconnect once so pipp can show clients the reach of your campaign posts.{' '}
+                    <a href="/api/instagram/login">Reconnect Instagram</a>
+                  </p>
+                )}
+                {platform === 'tiktok' && (
+                  <p className="small">Until TikTok finishes reviewing pipp, videos posted from pipp are visible only to you. Posting it yourself works as normal.</p>
+                )}
+                <div className="stats">
+                  <div><span>Followers</span><strong>{num(a.followers_count)}</strong></div>
+                  <div><span>{POSTS_WORD[platform]}</span><strong>{num(a.media_count)}</strong></div>
+                  <div><span>Fee per post</span><strong>{a.fee_cents != null ? `$${(a.fee_cents / 100).toLocaleString('en-US')}` : 'Not set'}</strong></div>
+                </div>
+                {recent.length > 0 && (
+                  <details>
+                    <summary>Recent captions pipp learns from ({recent.length})</summary>
+                    <ul className="captions">
+                      {recent.slice(0, 5).map((p) => (
+                        <li key={p.id}>
+                          <p>{p.caption}</p>
+                          <span>
+                            {formatDate(p.timestamp)}
+                            {typeof p.like_count === 'number' ? ` · ${p.like_count.toLocaleString('en-US')} likes` : ''}
+                            {p.permalink && <>{' · '}<a href={p.permalink} target="_blank" rel="noreferrer">View</a></>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </li>
+            );
+          })}
+        </ul>
 
-        {!account.email && (
-          <p className="notice">Add an email below so pipp can tell you when a campaign arrives.</p>
+        {canLink.length > 0 && (
+          <section className="card">
+            <h2>Link another account</h2>
+            <p className="small">Run X or TikTok accounts too? Link them here so campaigns for every account land in one inbox.</p>
+            <div className="row">
+              {canLink.map((p) => (
+                PLATFORMS[p].configured()
+                  ? <a key={p} className="button button-small" href={PLATFORMS[p].loginPath}>Link {PLATFORMS[p].label}</a>
+                  : <span key={p} className="button button-small is-disabled" aria-disabled="true">{PLATFORMS[p].label} coming soon</span>
+              ))}
+            </div>
+          </section>
         )}
-        {!hasInsightsScope(account) && (
-          <p className="notice">
-            Reconnect once so pipp can show clients the reach of your campaign posts.{' '}
-            <a href="/api/instagram/login">Reconnect Instagram</a>
-          </p>
-        )}
+
+        {!email && <p className="notice">Add an email below so pipp can tell you when a campaign arrives.</p>}
 
         <div className="row">
           <a className="button" href="/inbox">Campaign inbox{waiting ? ` (${waiting} new)` : ''}</a>
           <a className="button button-small" href="/draft">Draft a caption</a>
-          <a className="button button-small" href="/publish">Publish a post</a>
+          {linked.has('instagram') && <a className="button button-small" href="/publish">Publish an Instagram post</a>}
         </div>
 
-        <FeeForm currentFee={account.fee_cents != null ? String(account.fee_cents / 100) : ''} currentEmail={account.email || ''} />
+        <FeeForm
+          accounts={accounts.map((a) => ({
+            key: a.ig_user_id, username: a.username, label: platformLabel(a),
+            fee: a.fee_cents != null ? String(a.fee_cents / 100) : '',
+          }))}
+          currentEmail={email}
+        />
 
-        <h2>Recent captions</h2>
-        {captioned.length === 0 ? (
-          <p>No captioned posts yet. pipp needs a few to learn how your page writes.</p>
-        ) : (
-          <ul className="captions">
-            {captioned.map((p) => (
-              <li key={p.id}>
-                <p>{p.caption}</p>
-                <span>
-                  {formatDate(p.timestamp)} · {p.media_type.toLowerCase().replace('_', ' ').replace('carousel album', 'carousel')}
-                  {typeof p.like_count === 'number' ? ` · ${p.like_count} likes` : ''}
-                  {' · '}<a href={p.permalink} target="_blank" rel="noreferrer">View on Instagram</a>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <form action="/api/instagram/disconnect" method="post">
-          <button className="button button-quiet" type="submit">Disconnect and delete my data</button>
+        <form action="/api/accounts/disconnect" method="post">
+          <input type="hidden" name="account" value="all" />
+          <button className="button button-quiet" type="submit">Disconnect everything and delete my data</button>
         </form>
       </article>
     </main>

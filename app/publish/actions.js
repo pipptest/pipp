@@ -1,15 +1,15 @@
 'use server';
 
 import { friendlyPublishError, publishFromStorage } from '../../lib/publishing';
-import { currentAccount } from '../../lib/session';
+import { currentPage } from '../../lib/session';
 import { newPath, signedUpload } from '../../lib/storage';
 
 const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 // Step 1: give the browser a one-time link to upload the photo straight to storage.
 export async function prepareUpload(contentType) {
-  const account = await currentAccount();
-  if (!account) return { error: 'Your Instagram connection has ended. Connect your page again.' };
+  const account = (await currentPage())?.accounts.find((a) => a.platform === 'instagram');
+  if (!account) return { error: 'Connect Instagram to publish from here.' };
   const ext = TYPES[contentType];
   if (!ext) return { error: 'Use a JPEG, PNG or WebP photo.' };
   try {
@@ -23,8 +23,8 @@ export async function prepareUpload(contentType) {
 
 // Step 2: after the person confirms, convert the photo for Instagram and publish it.
 export async function publishPost({ path, caption }) {
-  const account = await currentAccount();
-  if (!account) return { error: 'Your Instagram connection has ended. Connect your page again.' };
+  const account = (await currentPage())?.accounts.find((a) => a.platform === 'instagram');
+  if (!account) return { error: 'Connect Instagram to publish from here.' };
   if (typeof path !== 'string' || !path.startsWith(account.ig_user_id + '/') || path.includes('..')) {
     return { error: 'That upload does not belong to this page.' };
   }

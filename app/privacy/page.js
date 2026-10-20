@@ -19,9 +19,9 @@ export default function Privacy() {
         <ul>
           <li>Account details you give us, such as your name, email address and fee per post.</li>
           <li>
-            If you connect an Instagram account: your username, account ID, profile information, follower count,
-            your recent posts and their captions, and the reach and engagement figures Instagram provides for
-            your posts.
+            If you connect an Instagram, X or TikTok account: your username, account ID, profile information,
+            follower count, your recent posts and their captions, and the reach, view and engagement figures the
+            platform provides for your posts.
           </li>
           <li>Photos, videos and text that clients upload for campaigns.</li>
           <li>Records of campaigns, offers, approvals and payments made through pipp.</li>
@@ -53,9 +53,10 @@ export default function Privacy() {
 
         <h2>Your choices</h2>
         <ul>
-          <li>You can disconnect your Instagram account from pipp at any time.</li>
+          <li>You can disconnect any connected account from pipp at any time, on your page in pipp.</li>
           <li>
-            You can remove pipp's access from Instagram's settings, under apps and websites.
+            You can also remove pipp's access in each platform's settings: on Instagram under apps and websites,
+            on X under connected apps, and on TikTok under security and permissions, apps.
           </li>
           <li>
             You can ask us to access, correct or delete your information. See{' '}

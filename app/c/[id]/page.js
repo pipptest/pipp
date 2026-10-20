@@ -6,6 +6,8 @@ import { engagement, refreshOffer, statusLabel } from '../../../lib/offers';
 import ReviewCaption from './ReviewCaption';
 import ClientNav from '../ClientNav';
 
+const PLATFORM_LABELS = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok' };
+
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Campaign · pipp' };
 
@@ -28,15 +30,18 @@ export default async function Campaign({ params, searchParams }) {
   if (!campaign) notFound();
 
   const rows = await sql`
-    select o.*, a.username, a.access_token_enc, a.ig_user_id as account_id
+    select o.*, a.username, a.platform, a.id as account_row
     from offers o left join instagram_accounts a on a.ig_user_id = o.ig_user_id
     where o.campaign_id = ${id} order by o.created_at
   `;
+  const accountRows = rows.some((r) => r.account_row)
+    ? await sql`select * from instagram_accounts where id in ${sql(rows.filter((r) => r.account_row).map((r) => r.account_row))}`
+    : [];
   const offers = await Promise.all(
     rows.map(async (r) => {
-      const account = r.account_id ? { ig_user_id: r.account_id, access_token_enc: r.access_token_enc } : null;
+      const account = accountRows.find((a) => a.id === r.account_row) || null;
       const fresh = await refreshOffer(r, campaign, account);
-      return { ...fresh, username: r.username };
+      return { ...fresh, username: r.username, platform: r.platform || 'instagram' };
     }),
   );
 
@@ -66,7 +71,7 @@ export default async function Campaign({ params, searchParams }) {
       <div className="stats">
         <div><span>Pages</span><strong>{offers.length}</strong></div>
         <div><span>Posted</span><strong>{live.length}</strong></div>
-        <div><span>Reach</span><strong>{live.length ? num(reach) : '—'}</strong></div>
+        <div><span>Reach and views</span><strong>{live.length ? num(reach) : '—'}</strong></div>
         <div><span>Engagements</span><strong>{live.length ? num(eng) : '—'}</strong></div>
         <div><span>Committed</span><strong>{dollars(committed)}</strong></div>
         <div><span>Owed for live posts</span><strong>{dollars(owed)}</strong></div>
@@ -84,6 +89,7 @@ export default async function Campaign({ params, searchParams }) {
         {offers.map((o) => (
           <div key={o.id} className="offer-row">
             <div className="grow">
+              {o.username && <span className={`platform platform-${o.platform}`}>{PLATFORM_LABELS[o.platform]}</span>}
               <strong>@{o.username || 'disconnected page'}</strong>
               <span className={`chip chip-${o.status}`}>{statusLabel(o.status, 'client')}</span>
               {o.status === 'scheduled' && o.scheduled_for && (
@@ -96,7 +102,7 @@ export default async function Campaign({ params, searchParams }) {
                 <a href={o.permalink} target="_blank" rel="noreferrer">View post</a>
               )}
             </div>
-            <div className="cell"><span className="muted">Reach</span><strong>{num(o.stats?.reach)}</strong></div>
+            <div className="cell"><span className="muted">{o.platform === 'instagram' ? 'Reach' : 'Views'}</span><strong>{num(o.stats?.reach)}</strong></div>
             <div className="cell"><span className="muted">Engagements</span><strong>{num(engagement(o.stats))}</strong></div>
             <div className="cell"><span className="muted">Fee</span><strong>{dollars(o.fee_cents)}</strong></div>
             {o.status === 'review' && (
@@ -105,10 +111,10 @@ export default async function Campaign({ params, searchParams }) {
           </div>
         ))}
         {offers.some((o) => o.stats?.unavailable) && (
-          <p className="small card-pad">Results show once a page has reconnected with pipp to share post insights.</p>
+          <p className="small card-pad">Some results aren’t available yet: Instagram pages need to reconnect once to share reach, and TikTok videos posted from pipp stay private until TikTok finishes reviewing pipp.</p>
         )}
       </section>
-      <p className="small">Payments are handled outside pipp during the beta. You only owe pages whose post is live.</p>
+      <p className="small">Payments are handled outside pipp during the beta. You only owe pages whose post is live. Reach is people reached on Instagram; on X and TikTok it’s views.</p>
     </main>
   );
 }

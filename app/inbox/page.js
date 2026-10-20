@@ -2,14 +2,17 @@ import { redirect } from 'next/navigation';
 import { db } from '../../lib/db';
 import { dollars } from '../../lib/money';
 import { OPEN_FOR_PAGE, refreshOffer, statusLabel } from '../../lib/offers';
-import { currentAccount } from '../../lib/session';
+import { platformLabel } from '../../lib/platforms';
+import { currentPage } from '../../lib/session';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Campaign inbox · pipp' };
 
 export default async function Inbox() {
-  const account = await currentAccount();
-  if (!account) redirect('/connect');
+  const page = await currentPage();
+  if (!page) redirect('/connect');
+  const byKey = Object.fromEntries(page.accounts.map((a) => [a.ig_user_id, a]));
+  const several = page.accounts.length > 1;
 
   const sql = await db();
   const rows = await sql`
@@ -17,17 +20,17 @@ export default async function Inbox() {
     from offers o
     join campaigns c on c.id = o.campaign_id
     join clients cl on cl.id = c.client_id
-    where o.ig_user_id = ${account.ig_user_id}
+    where o.ig_user_id in ${sql(page.keys)}
     order by (o.status in ('sent', 'approved', 'failed')) desc, o.created_at desc
   `;
   const offers = await Promise.all(
-    rows.map(async (r) => ({ ...(await refreshOffer(r, { extras: r.extras }, account)), campaign_name: r.campaign_name, client_name: r.client_name })),
+    rows.map(async (r) => ({ ...(await refreshOffer(r, { extras: r.extras }, byKey[r.ig_user_id])), campaign_name: r.campaign_name, client_name: r.client_name })),
   );
   const pending = offers.filter((o) => o.status === 'posted').reduce((t, o) => t + o.fee_cents, 0);
 
   return (
     <main>
-      <p className="small"><a href="/account">@{account.username}</a></p>
+      <p className="small"><a href="/account">@{page.account.username}</a></p>
       <div className="page-head">
         <h1 className="title">Campaign inbox</h1>
       </div>
@@ -35,7 +38,7 @@ export default async function Inbox() {
         <div><span>Owed for live posts</span><strong>{dollars(pending)}</strong></div>
         <div><span>Needs your reply</span><strong>{offers.filter((o) => OPEN_FOR_PAGE.includes(o.status)).length}</strong></div>
       </div>
-      {account.fee_cents == null && (
+      {page.accounts.every((a) => a.fee_cents == null) && (
         <p className="notice">Set your fee on <a href="/account">your page</a> so clients can send you campaigns.</p>
       )}
       {offers.length === 0 ? (
@@ -48,6 +51,9 @@ export default async function Inbox() {
                 <span>
                   <strong>{o.campaign_name}</strong>
                   <span className="muted">{o.client_name}</span>
+                  {several && byKey[o.ig_user_id] && (
+                    <span className="muted">for @{byKey[o.ig_user_id].username} on {platformLabel(byKey[o.ig_user_id])}</span>
+                  )}
                   <span className={`chip chip-${o.status}`}>{statusLabel(o.status, 'page')}</span>
                 </span>
                 <span className="right"><strong>{dollars(o.fee_cents)}</strong></span>

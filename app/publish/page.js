@@ -1,13 +1,15 @@
 import { redirect } from 'next/navigation';
-import { currentAccount } from '../../lib/session';
+import { currentPage } from '../../lib/session';
 import PublishForm from './PublishForm';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Publish a post · pipp' };
 
 export default async function Publish({ searchParams }) {
-  const account = await currentAccount();
-  if (!account) redirect('/connect');
+  const page = await currentPage();
+  if (!page) redirect('/connect');
+  const account = page.accounts.find((a) => a.platform === 'instagram');
+  if (!account) redirect('/account?need=instagram');
   const params = await searchParams;
   const caption = typeof params?.caption === 'string' ? params.caption.slice(0, 2200) : '';
 

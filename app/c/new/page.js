@@ -14,7 +14,7 @@ export default async function NewCampaign() {
 
   const sql = await db();
   const pages = await sql`
-    select a.ig_user_id, a.username, a.followers_count, a.fee_cents, a.snapshot,
+    select a.id, a.ig_user_id, a.platform, a.username, a.followers_count, a.fee_cents, a.snapshot,
       (select count(*)::int from offers o where o.ig_user_id = a.ig_user_id and o.status = 'posted') as done
     from instagram_accounts a where a.fee_cents is not null
     order by a.followers_count desc nulls last
@@ -31,6 +31,8 @@ export default async function NewCampaign() {
         <NewCampaignForm
           pages={pages.map((p) => ({
             id: p.ig_user_id,
+            profileId: p.id,
+            platform: p.platform || 'instagram',
             username: p.username,
             followers: p.followers_count,
             feeCents: p.fee_cents,

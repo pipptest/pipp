@@ -24,12 +24,21 @@ function CopyButton({ text }) {
   );
 }
 
-export default function DraftForm({ username }) {
+export default function DraftForm({ accounts }) {
   const [state, action, pending] = useActionState(draftAction, null);
 
   return (
     <>
       <form action={action} className="form">
+        {accounts.length > 1 && (
+          <>
+            <label htmlFor="account">Write for</label>
+            <select id="account" name="account" defaultValue={state?.values?.account || accounts[0].key}>
+              {accounts.map((a) => <option key={a.key} value={a.key}>@{a.username} on {a.label}</option>)}
+            </select>
+          </>
+        )}
+        {accounts.length === 1 && <input type="hidden" name="account" value={accounts[0].key} />}
         <label htmlFor="brief">What should the post say?</label>
         <textarea
           id="brief"
@@ -56,7 +65,7 @@ export default function DraftForm({ username }) {
 
       {state?.drafts && (
         <section aria-live="polite">
-          <h2>Drafts for @{username}</h2>
+          <h2>Drafts for @{(accounts.find((a) => a.key === state.values?.account) || accounts[0]).username}</h2>
           <p className="small">Written from {state.basedOn} of your recent captions. Edit freely before posting.</p>
           <ul className="captions">
             {state.drafts.map((d, i) => (
@@ -64,7 +73,9 @@ export default function DraftForm({ username }) {
                 <p>{d}</p>
                 <div className="row">
                   <CopyButton text={d} />
-                  <a className="button button-small" href={`/publish?caption=${encodeURIComponent(d)}`}>Post with this caption</a>
+                  {(accounts.find((a) => a.key === state.values?.account) || accounts[0]).platform === 'instagram' && (
+                    <a className="button button-small" href={`/publish?caption=${encodeURIComponent(d)}`}>Post with this caption</a>
+                  )}
                 </div>
               </li>
             ))}
